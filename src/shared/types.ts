@@ -51,6 +51,14 @@ export interface AppSettings {
   themeImage: string | null // 自定义背景图片的绝对路径（userData/theme 下）
 }
 
+export interface YouTubeSearchResult {
+  videoId: string
+  title: string
+  channel: string
+  duration: string // 如 "4:23"，直播为空
+  thumbnail: string
+}
+
 export interface YouTubeHistoryItem {
   url: string
   videoId: string // 为空表示纯歌单链接

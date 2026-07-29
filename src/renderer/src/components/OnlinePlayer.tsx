@@ -3,7 +3,7 @@ import { usePlayer } from '../store/player'
 import { useLibrary } from '../store/library'
 import { parseYouTubeUrl } from '../utils'
 import type { YouTubeRef } from '../utils'
-import type { YouTubeHistoryItem } from '../../../shared/types'
+import type { YouTubeHistoryItem, YouTubeSearchResult } from '../../../shared/types'
 
 function embedUrl(ref: YouTubeRef): string {
   // 用 www.youtube.com（非 nocookie）以共享登录会话，Premium 账号免广告
@@ -23,15 +23,17 @@ function formatPlayedAt(t: number): string {
   })
 }
 
-/** 在线播放面板：粘贴 YouTube 链接用官方嵌入播放器播放，播放记录按时间排列 */
+/** 在线播放面板：粘贴链接直接播放、输入关键词搜索 YouTube，播放记录按时间排列 */
 function OnlinePlayer(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [current, setCurrent] = useState<YouTubeRef | null>(null)
-  const [error, setError] = useState(false)
+  const [results, setResults] = useState<YouTubeSearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchFailed, setSearchFailed] = useState(false)
   const history = useLibrary((s) => s.youtubeHistory)
+  const inputIsUrl = parseYouTubeUrl(input) !== null
 
-  const startPlay = (ref: YouTubeRef, url: string): void => {
-    setError(false)
+  const startPlay = (ref: YouTubeRef, url: string, knownTitle?: string): void => {
     setCurrent(ref)
     // 开始在线播放时暂停本地播放，避免两路声音
     usePlayer.setState({ playing: false })
@@ -39,21 +41,42 @@ function OnlinePlayer(): React.JSX.Element {
       url,
       videoId: ref.videoId,
       listId: ref.listId,
-      title: null
+      title: knownTitle ?? null
     })
-    // 异步补标题，取不到就继续显示链接
-    window.api.getYouTubeTitle(url).then((title) => {
-      if (title) useLibrary.getState().setYouTubeTitle(ref.videoId, ref.listId, title)
-    })
+    if (!knownTitle) {
+      // 异步补标题，取不到就继续显示链接
+      window.api.getYouTubeTitle(url).then((title) => {
+        if (title) useLibrary.getState().setYouTubeTitle(ref.videoId, ref.listId, title)
+      })
+    }
   }
 
-  const playFromInput = (): void => {
-    const ref = parseYouTubeUrl(input)
-    if (!ref) {
-      setError(true)
+  const submit = async (): Promise<void> => {
+    const text = input.trim()
+    if (!text || searching) return
+    const ref = parseYouTubeUrl(text)
+    if (ref) {
+      startPlay(ref, text)
       return
     }
-    startPlay(ref, input.trim())
+    // 非链接 → 按关键词搜索
+    setSearching(true)
+    setSearchFailed(false)
+    try {
+      const found = await window.api.searchYouTube(text)
+      setResults(found)
+      setSearchFailed(found.length === 0)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const playResult = (r: YouTubeSearchResult): void => {
+    startPlay(
+      { videoId: r.videoId, listId: null },
+      `https://www.youtube.com/watch?v=${r.videoId}`,
+      r.title
+    )
   }
 
   const playFromHistory = (item: YouTubeHistoryItem): void => {
@@ -66,18 +89,15 @@ function OnlinePlayer(): React.JSX.Element {
         <input
           className="online-input"
           type="text"
-          placeholder="粘贴 YouTube 视频或歌单链接…"
+          placeholder="粘贴 YouTube 链接直接播放，或输入关键词搜索…"
           value={input}
-          onChange={(e) => {
-            setInput(e.target.value)
-            setError(false)
-          }}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') playFromInput()
+            if (e.key === 'Enter') submit()
           }}
         />
-        <button className="btn" onClick={playFromInput}>
-          播放
+        <button className="btn" onClick={submit} disabled={searching}>
+          {searching ? '搜索中…' : inputIsUrl ? '播放' : '搜索'}
         </button>
         <button
           className="btn"
@@ -94,7 +114,6 @@ function OnlinePlayer(): React.JSX.Element {
           ✕
         </button>
       </div>
-      {error && <div className="online-error">无法识别的 YouTube 链接</div>}
       <div className="online-body">
         {current ? (
           <iframe
@@ -106,43 +125,69 @@ function OnlinePlayer(): React.JSX.Element {
           />
         ) : (
           <div className="online-hint">
-            <div>粘贴 YouTube 链接后点「播放」</div>
-            <div className="online-hint-sub">
-              支持视频 / 歌单链接（youtube.com、youtu.be）。需要联网；关闭此面板即停止播放。
-            </div>
+            <div>粘贴 YouTube 链接直接播放，或输入关键词搜索</div>
+            <div className="online-hint-sub">需要联网；关闭此面板即停止播放。</div>
           </div>
         )}
       </div>
-      {history.length > 0 && (
+      {results !== null ? (
         <div className="online-history">
-          <div className="online-history-title">播放记录</div>
+          <div className="online-history-title">
+            <span>{searchFailed ? '没有找到相关视频' : `搜索结果（${results.length}）`}</span>
+            <button className="online-clear" onClick={() => setResults(null)}>
+              返回播放记录
+            </button>
+          </div>
           <div className="online-history-list">
-            {history.map((item) => (
+            {results.map((r) => (
               <div
-                key={`${item.videoId}|${item.listId ?? ''}`}
+                key={r.videoId}
                 className="online-history-item"
-                title={item.url}
-                onClick={() => playFromHistory(item)}
+                title={r.title}
+                onClick={() => playResult(r)}
               >
-                <span className="online-history-name">
-                  {item.listId && !item.videoId ? '📃 ' : ''}
-                  {item.title ?? item.url}
-                </span>
-                <span className="online-history-time">{formatPlayedAt(item.playedAt)}</span>
-                <button
-                  className="online-history-remove"
-                  title="删除记录"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    useLibrary.getState().removeYouTubeHistory(item.videoId, item.listId)
-                  }}
-                >
-                  ✕
-                </button>
+                {r.thumbnail && <img className="online-thumb" src={r.thumbnail} alt="" />}
+                <span className="online-history-name">{r.title}</span>
+                <span className="online-result-channel">{r.channel}</span>
+                <span className="online-history-time">{r.duration}</span>
               </div>
             ))}
           </div>
         </div>
+      ) : (
+        history.length > 0 && (
+          <div className="online-history">
+            <div className="online-history-title">
+              <span>播放记录</span>
+            </div>
+            <div className="online-history-list">
+              {history.map((item) => (
+                <div
+                  key={`${item.videoId}|${item.listId ?? ''}`}
+                  className="online-history-item"
+                  title={item.url}
+                  onClick={() => playFromHistory(item)}
+                >
+                  <span className="online-history-name">
+                    {item.listId && !item.videoId ? '📃 ' : ''}
+                    {item.title ?? item.url}
+                  </span>
+                  <span className="online-history-time">{formatPlayedAt(item.playedAt)}</span>
+                  <button
+                    className="online-history-remove"
+                    title="删除记录"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      useLibrary.getState().removeYouTubeHistory(item.videoId, item.listId)
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       )}
     </div>
   )

@@ -6,6 +6,7 @@ import iconv from 'iconv-lite'
 import { collectAudioFiles } from './library'
 import { parseTrack, coversDir } from './metadata'
 import { loadData, scheduleSave } from './store'
+import { searchYouTube } from './youtubeSearch'
 import { SUPPORTED_EXTENSIONS } from '../shared/types'
 import type { AppData, Track } from '../shared/types'
 
@@ -35,6 +36,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:coversDir', () => coversDir())
 
   ipcMain.handle('app:version', () => app.getVersion())
+
+  ipcMain.handle('youtube:search', async (_e, query: string) => {
+    try {
+      return await searchYouTube(query)
+    } catch {
+      return []
+    }
+  })
 
   // 通过 oEmbed 取视频标题（无需 API key），失败返回 null
   ipcMain.handle('youtube:title', async (_e, videoUrl: string) => {

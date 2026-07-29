@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AppData, Track, ImportProgress } from '../shared/types'
+import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../shared/types'
 
 // 渲染进程可用的白名单 API
 const api = {
@@ -26,6 +26,8 @@ const api = {
   openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
   getYouTubeTitle: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('youtube:title', url),
+  searchYouTube: (query: string): Promise<YouTubeSearchResult[]> =>
+    ipcRenderer.invoke('youtube:search', query),
   onMiniHover: (cb: (hovered: boolean) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, hovered: boolean): void => cb(hovered)
     ipcRenderer.on('mini:hover', listener)

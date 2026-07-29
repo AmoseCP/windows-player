@@ -955,6 +955,37 @@ input {
   padding: 10px 16px 6px;
   font-size: 12px;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.online-clear {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.online-clear:hover {
+  color: var(--text-primary);
+}
+
+.online-thumb {
+  width: 60px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+}
+
+.online-result-channel {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .online-history-list {
