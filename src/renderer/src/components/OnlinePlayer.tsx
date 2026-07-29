@@ -162,8 +162,8 @@ function OnlinePlayer(): React.JSX.Element {
                 <div
                   key={`${item.videoId}|${item.listId ?? ''}`}
                   className="online-history-item"
-                  title={item.url}
-                  onClick={() => playFromHistory(item)}
+                  title={`双击播放\n${item.url}`}
+                  onDoubleClick={() => playFromHistory(item)}
                 >
                   <span className="online-history-name">
                     {item.listId && !item.videoId ? '📃 ' : ''}
