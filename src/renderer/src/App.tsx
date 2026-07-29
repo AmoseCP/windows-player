@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core'
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import TrackList from './components/TrackList'
@@ -23,6 +23,14 @@ const SIDEBAR_MAX = 400
 /** 拖拽负载：歌曲行 或 侧栏歌单节点 */
 export type DragData =
   { type: 'track'; trackId: string; index: number } | { type: 'playlist'; playlistId: string }
+
+// 侧栏整体是「歌单拖回根级」的投放目标，但它是大容器，pointerWithin 按角距排序时
+// 会抢走内部歌单/文件夹节点的命中；有更具体的目标时将其排除
+const collisionDetection: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args)
+  const specific = collisions.filter((c) => String(c.id) !== 'drop-sidebar-root')
+  return specific.length > 0 ? specific : collisions
+}
 
 function App(): React.JSX.Element {
   const sidebarWidth = useLibrary((s) => s.sidebarWidth)
@@ -75,7 +83,10 @@ function App(): React.JSX.Element {
       const overId = String(e.over.id)
       if (overId.startsWith('drop-playlist:')) {
         // 歌曲拖到侧栏歌单 = 添加（重复自动跳过）
-        lib.addTrackToPlaylist(overId.slice('drop-playlist:'.length), data.trackId)
+        const pid = overId.slice('drop-playlist:'.length)
+        const added = lib.addTrackToPlaylist(pid, data.trackId)
+        const name = lib.playlists[pid]?.name ?? ''
+        usePlayer.getState().showNotice(added ? `已添加到歌单「${name}」` : `已在歌单「${name}」中`)
         return
       }
       const overData = e.over.data.current as DragData | undefined
@@ -121,7 +132,7 @@ function App(): React.JSX.Element {
     <div className="app" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onDragCancel={() => setDragLabel(null)}

@@ -130,7 +130,11 @@ function TrackList(): React.JSX.Element {
     const lib = useLibrary.getState()
     const playlistItem = (pid: string): MenuItem => ({
       label: lib.playlists[pid]?.name ?? '',
-      onClick: () => lib.addTrackToPlaylist(pid, track.id)
+      onClick: () => {
+        const added = useLibrary.getState().addTrackToPlaylist(pid, track.id)
+        const name = useLibrary.getState().playlists[pid]?.name ?? ''
+        usePlayer.getState().showNotice(added ? `已添加到歌单「${name}」` : `已在歌单「${name}」中`)
+      }
     })
     // 级联子菜单：文件夹 → 歌单 分组，根级歌单直接列出
     const addSubmenu: MenuItem[] = [

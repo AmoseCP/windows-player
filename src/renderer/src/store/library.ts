@@ -32,7 +32,7 @@ interface LibraryState {
   deletePlaylist: (id: string) => void
   deleteFolder: (id: string) => void
 
-  addTrackToPlaylist: (playlistId: string, trackId: string) => void
+  addTrackToPlaylist: (playlistId: string, trackId: string) => boolean
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void
   deleteTrackFromLibrary: (trackId: string) => void
   reorderPlaylist: (playlistId: string, fromIndex: number, toIndex: number) => void
@@ -182,15 +182,21 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       }
     }),
 
-  // 同一首歌可加入多个歌单；同一歌单内重复添加则跳过
-  addTrackToPlaylist: (playlistId, trackId) =>
-    set((s) => {
-      const p = s.playlists[playlistId]
-      if (!p || p.trackIds.includes(trackId)) return s
-      return {
-        playlists: { ...s.playlists, [playlistId]: { ...p, trackIds: [...p.trackIds, trackId] } }
+  // 同一首歌可加入多个歌单；同一歌单内重复添加则跳过。返回是否实际添加
+  addTrackToPlaylist: (playlistId, trackId) => {
+    const p = get().playlists[playlistId]
+    if (!p || p.trackIds.includes(trackId)) return false
+    set((s) => ({
+      playlists: {
+        ...s.playlists,
+        [playlistId]: {
+          ...s.playlists[playlistId],
+          trackIds: [...s.playlists[playlistId].trackIds, trackId]
+        }
       }
-    }),
+    }))
+    return true
+  },
 
   removeTrackFromPlaylist: (playlistId, trackId) =>
     set((s) => {
