@@ -9,7 +9,8 @@ import {
   Tray,
   Menu,
   nativeImage,
-  screen
+  screen,
+  session
 } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -177,6 +178,16 @@ app.whenReady().then(() => {
       return new Response(null, { status: 404 })
     }
   })
+
+  // 打包后页面为 file:// 加载，请求不带 Referer，YouTube 嵌入播放器会报
+  // Error 153（强制要求有效 Referer）；给嵌入端点补上
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['https://www.youtube.com/embed/*'] },
+    (details, callback) => {
+      details.requestHeaders['Referer'] = 'https://www.youtube.com/'
+      callback({ requestHeaders: details.requestHeaders })
+    }
+  )
 
   registerIpcHandlers()
 
