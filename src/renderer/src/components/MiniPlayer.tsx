@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { usePlayer, currentTrackId } from '../store/player'
 import { useLibrary } from '../store/library'
 import { useAudio } from '../hooks/useAudio'
@@ -12,11 +13,15 @@ function MiniPlayer(): React.JSX.Element {
   const coversDir = useLibrary((s) => s.coversDir)
   // 迷你模式下 PlayerBar 卸载，由这里驱动 audio（进度/自动切歌等逻辑不中断）
   const { currentTime, duration } = useAudio()
+  // 拖动区域收不到 DOM 鼠标事件，悬停状态由主进程轮询光标位置推送
+  const [hovered, setHovered] = useState(false)
+
+  useEffect(() => window.api.onMiniHover(setHovered), [])
 
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0
 
   return (
-    <div className="mini-player">
+    <div className={`mini-player${hovered ? ' hovered' : ''}`}>
       <div className="mini-cover">
         {track?.coverFile && coversDir ? (
           <img src={localFileUrl(`${coversDir}/${track.coverFile}`)} alt="" />

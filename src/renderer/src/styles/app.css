@@ -774,7 +774,8 @@ input {
   gap: 2px;
 }
 
-.mini-player:hover .mini-hover-actions {
+.mini-player:hover .mini-hover-actions,
+.mini-player.hovered .mini-hover-actions {
   display: flex;
 }
 

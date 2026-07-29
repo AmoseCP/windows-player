@@ -8,7 +8,8 @@ import {
   ipcMain,
   Tray,
   Menu,
-  nativeImage
+  nativeImage,
+  screen
 } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -106,6 +107,36 @@ function createTray(): void {
   tray.on('double-click', showMainWindow)
 }
 
+// 迷你条整体是 -webkit-app-region: drag，拖动区域收不到 DOM 鼠标事件（hover 失效），
+// 由主进程轮询光标是否位于窗口内，通知渲染层显示/隐藏悬停按钮
+let miniHoverTimer: NodeJS.Timeout | null = null
+let miniHovered = false
+
+function stopMiniHoverWatch(): void {
+  if (miniHoverTimer) {
+    clearInterval(miniHoverTimer)
+    miniHoverTimer = null
+  }
+  miniHovered = false
+}
+
+function startMiniHoverWatch(): void {
+  stopMiniHoverWatch()
+  miniHoverTimer = setInterval(() => {
+    if (!mainWindow) {
+      stopMiniHoverWatch()
+      return
+    }
+    const p = screen.getCursorScreenPoint()
+    const b = mainWindow.getBounds()
+    const inside = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height
+    if (inside !== miniHovered) {
+      miniHovered = inside
+      mainWindow.webContents.send('mini:hover', inside)
+    }
+  }, 150)
+}
+
 /** 迷你模式：缩小窗口 + 置顶 + 禁止缩放；恢复时还原原始尺寸位置 */
 function setMiniMode(mini: boolean): void {
   if (!mainWindow) return
@@ -116,7 +147,9 @@ function setMiniMode(mini: boolean): void {
     mainWindow.setSize(MINI_SIZE.width, MINI_SIZE.height)
     mainWindow.setResizable(false)
     mainWindow.setAlwaysOnTop(true)
+    startMiniHoverWatch()
   } else {
+    stopMiniHoverWatch()
     mainWindow.setAlwaysOnTop(false)
     mainWindow.setResizable(true)
     mainWindow.setMinimumSize(NORMAL_MIN.width, NORMAL_MIN.height)

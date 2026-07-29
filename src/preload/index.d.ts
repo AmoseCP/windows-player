@@ -16,6 +16,7 @@ interface Api {
   setMiniWindow(mini: boolean): void
   windowControl(action: 'minimize' | 'toggleMaximize' | 'close'): void
   openYouTubeLogin(): void
+  onMiniHover(cb: (hovered: boolean) => void): () => void
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>
 }

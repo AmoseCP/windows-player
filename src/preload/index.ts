@@ -24,6 +24,11 @@ const api = {
   windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
     ipcRenderer.send('window:control', action),
   openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
+  onMiniHover: (cb: (hovered: boolean) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, hovered: boolean): void => cb(hovered)
+    ipcRenderer.on('mini:hover', listener)
+    return () => ipcRenderer.removeListener('mini:hover', listener)
+  },
   pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
   getLyrics: (path: string): Promise<{ content: string } | null> =>
     ipcRenderer.invoke('lyrics:get', path),
