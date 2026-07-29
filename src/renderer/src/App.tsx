@@ -64,6 +64,10 @@ function App(): React.JSX.Element {
   useEffect(() => {
     useLibrary.getState().init()
     initPersistence()
+    // 窗口关闭（隐藏到托盘）时立即停止本地与在线播放
+    return window.api.onPlayerStop(() => {
+      usePlayer.setState({ playing: false, showOnline: false })
+    })
   }, [])
 
   // 文件/文件夹拖入窗口导入

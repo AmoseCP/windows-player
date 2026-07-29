@@ -19,6 +19,7 @@ interface Api {
   openYouTubeWindow(url: string): void
   getYouTubeTitle(url: string): Promise<string | null>
   searchYouTube(query: string): Promise<YouTubeSearchResult[]>
+  onPlayerStop(cb: () => void): () => void
   onMiniHover(cb: (hovered: boolean) => void): () => void
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>

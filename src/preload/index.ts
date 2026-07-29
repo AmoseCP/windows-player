@@ -29,6 +29,11 @@ const api = {
     ipcRenderer.invoke('youtube:title', url),
   searchYouTube: (query: string): Promise<YouTubeSearchResult[]> =>
     ipcRenderer.invoke('youtube:search', query),
+  onPlayerStop: (cb: () => void): (() => void) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('player:stop', listener)
+    return () => ipcRenderer.removeListener('player:stop', listener)
+  },
   onMiniHover: (cb: (hovered: boolean) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, hovered: boolean): void => cb(hovered)
     ipcRenderer.on('mini:hover', listener)

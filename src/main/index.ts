@@ -58,11 +58,12 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  // 关闭按钮 = 隐藏到托盘继续运行；只有托盘「退出」才真正退出
+  // 关闭按钮 = 停止播放并隐藏到托盘；只有托盘「退出」才真正退出
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault()
       mainWindow?.hide()
+      mainWindow?.webContents.send('player:stop')
     }
   })
 
