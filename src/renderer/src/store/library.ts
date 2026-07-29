@@ -34,7 +34,7 @@ interface LibraryState {
   setSidebarWidth: (w: number) => void
   setSearch: (s: string) => void
   setThemeImage: (path: string | null) => void
-  addYouTubeHistory: (item: YouTubeHistoryItem) => void
+  addYouTubeHistory: (item: Omit<YouTubeHistoryItem, 'playedAt'>) => void
   setYouTubeTitle: (videoId: string, listId: string | null, title: string) => void
   removeYouTubeHistory: (videoId: string, listId: string | null) => void
   importPaths: (paths: string[]) => Promise<void>
@@ -97,10 +97,10 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       const rest = s.youtubeHistory.filter((h) => ytKey(h.videoId, h.listId) !== key)
       const old = s.youtubeHistory.find((h) => ytKey(h.videoId, h.listId) === key)
       return {
-        youtubeHistory: [{ ...item, title: item.title ?? old?.title ?? null }, ...rest].slice(
-          0,
-          100
-        )
+        youtubeHistory: [
+          { ...item, title: item.title ?? old?.title ?? null, playedAt: Date.now() },
+          ...rest
+        ].slice(0, 100)
       }
     }),
 

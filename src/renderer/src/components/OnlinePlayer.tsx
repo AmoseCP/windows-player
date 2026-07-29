@@ -39,8 +39,7 @@ function OnlinePlayer(): React.JSX.Element {
       url,
       videoId: ref.videoId,
       listId: ref.listId,
-      title: null,
-      playedAt: Date.now()
+      title: null
     })
     // 异步补标题，取不到就继续显示链接
     window.api.getYouTubeTitle(url).then((title) => {
