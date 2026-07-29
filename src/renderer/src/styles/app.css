@@ -869,6 +869,78 @@ input {
   color: var(--text-muted);
 }
 
+/* 在线播放面板（YouTube 嵌入） */
+.online-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  background: rgba(14, 14, 16, 0.98);
+}
+
+.online-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.online-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.online-input:focus {
+  border-color: var(--accent);
+}
+
+.online-error {
+  padding: 8px 16px;
+  color: #ff6b6b;
+  font-size: 13px;
+}
+
+.online-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.online-frame {
+  width: 100%;
+  height: 100%;
+  max-width: 1080px;
+  border: none;
+  border-radius: 8px;
+  background: #000;
+}
+
+.online-hint {
+  text-align: center;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.online-hint-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* 短暂提示（播放错误等） */
 .toast {
   position: fixed;

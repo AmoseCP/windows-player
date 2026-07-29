@@ -48,6 +48,13 @@ function TopBar(): React.JSX.Element {
         </button>
         <button
           className="btn"
+          title="粘贴 YouTube 链接在线播放"
+          onClick={() => usePlayer.getState().toggleOnline()}
+        >
+          在线
+        </button>
+        <button
+          className="btn"
           title="主题设置"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()

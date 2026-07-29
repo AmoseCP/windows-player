@@ -14,6 +14,7 @@ import TrackList from './components/TrackList'
 import PlayerBar from './components/PlayerBar'
 import MiniPlayer from './components/MiniPlayer'
 import LyricsPanel from './components/LyricsPanel'
+import OnlinePlayer from './components/OnlinePlayer'
 import { useLibrary } from './store/library'
 import { usePlayer } from './store/player'
 import { initPersistence } from './store/persistence'
@@ -44,6 +45,7 @@ function App(): React.JSX.Element {
   const notice = usePlayer((s) => s.notice)
   const miniMode = usePlayer((s) => s.miniMode)
   const showLyrics = usePlayer((s) => s.showLyrics)
+  const showOnline = usePlayer((s) => s.showOnline)
   const themeImage = useLibrary((s) => s.themeImage)
   const themeVersion = useLibrary((s) => s.themeVersion)
 
@@ -178,6 +180,7 @@ function App(): React.JSX.Element {
               <TrackList />
             </div>
             {showLyrics && <LyricsPanel />}
+            {showOnline && <OnlinePlayer />}
           </main>
         </div>
         <DragOverlay dropAnimation={null}>

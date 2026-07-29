@@ -17,6 +17,7 @@ interface PlayerState {
   notice: string | null // 短暂提示（文件不存在 / 格式不支持）
   miniMode: boolean // 迷你播放器模式
   showLyrics: boolean // 歌词面板
+  showOnline: boolean // 在线播放（YouTube）面板
 
   startQueue: (queue: string[], index: number) => void
   togglePlay: () => void
@@ -30,6 +31,7 @@ interface PlayerState {
   removeFromQueue: (trackId: string) => void
   setMini: (mini: boolean) => void
   toggleLyrics: () => void
+  toggleOnline: () => void
 }
 
 export function currentTrackId(s: Pick<PlayerState, 'queue' | 'queueIndex'>): string | null {
@@ -50,6 +52,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   notice: null,
   miniMode: false,
   showLyrics: false,
+  showOnline: false,
 
   startQueue: (queue, index) =>
     set((s) => ({
@@ -135,6 +138,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   toggleLyrics: () => set((s) => ({ showLyrics: !s.showLyrics })),
+
+  toggleOnline: () => set((s) => ({ showOnline: !s.showOnline })),
 
   // 歌曲被从音乐库删除时同步清理播放队列
   removeFromQueue: (trackId) => {

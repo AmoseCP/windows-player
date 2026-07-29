@@ -30,6 +30,36 @@ export function parseLrc(src: string): LyricLine[] {
   return plain
 }
 
+export interface YouTubeRef {
+  videoId: string // 为空表示纯歌单链接
+  listId: string | null
+}
+
+/** 解析 YouTube 链接：watch?v= / youtu.be / shorts / live / embed / playlist */
+export function parseYouTubeUrl(input: string): YouTubeRef | null {
+  let url: URL
+  try {
+    url = new URL(input.trim())
+  } catch {
+    return null
+  }
+  const host = url.hostname.replace(/^(www|m|music)\./, '')
+  if (host !== 'youtube.com' && host !== 'youtu.be') return null
+  const listId = url.searchParams.get('list')
+  let videoId: string | null = null
+  if (host === 'youtu.be') {
+    videoId = url.pathname.slice(1).split('/')[0] || null
+  } else if (url.pathname === '/watch') {
+    videoId = url.searchParams.get('v')
+  } else {
+    const m = url.pathname.match(/^\/(shorts|live|embed|v)\/([\w-]+)/)
+    if (m) videoId = m[2]
+  }
+  if (videoId && !/^[\w-]{5,20}$/.test(videoId)) videoId = null
+  if (!videoId && !listId) return null
+  return { videoId: videoId ?? '', listId }
+}
+
 /** 秒 → m:ss */
 export function formatDuration(seconds: number): string {
   if (!seconds || !isFinite(seconds)) return '-:--'

@@ -23,6 +23,7 @@ const api = {
   setMiniWindow: (mini: boolean): void => ipcRenderer.send('window:setMini', mini),
   windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
     ipcRenderer.send('window:control', action),
+  openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
   pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
   getLyrics: (path: string): Promise<{ content: string } | null> =>
     ipcRenderer.invoke('lyrics:get', path),

@@ -149,6 +149,17 @@ app.whenReady().then(() => {
 
   ipcMain.on('window:setMini', (_e, mini: boolean) => setMiniMode(mini))
 
+  // YouTube 登录窗口：与主窗口共享默认会话，登录后嵌入播放器随 Premium 免广告
+  ipcMain.on('youtube:openLogin', () => {
+    const loginWin = new BrowserWindow({
+      width: 520,
+      height: 720,
+      autoHideMenuBar: true,
+      title: '登录 YouTube'
+    })
+    loginWin.loadURL('https://www.youtube.com')
+  })
+
   // 自绘标题栏的窗口控制（close 走 close 事件 → 隐藏到托盘）
   ipcMain.on('window:control', (_e, action: string) => {
     if (!mainWindow) return
