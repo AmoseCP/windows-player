@@ -3,7 +3,7 @@ import { useLibrary } from '../store/library'
 import { useAudio } from '../hooks/useAudio'
 import { localFileUrl } from '../utils'
 
-/** 迷你模式：只显示核心播放控制，悬停显示放大按钮 */
+/** 迷你模式：无边框紧凑悬浮条，整体可拖动，悬停显示放大/关闭按钮 */
 function MiniPlayer(): React.JSX.Element {
   const trackId = usePlayer((s) => currentTrackId(s))
   const playing = usePlayer((s) => s.playing)
@@ -38,10 +38,19 @@ function MiniPlayer(): React.JSX.Element {
           </button>
         </div>
       </div>
-      {/* 悬停迷你窗口时立即显示的放大按钮 */}
-      <button className="mini-expand" title="恢复完整界面" onClick={() => setMini(false)}>
-        ⛶
-      </button>
+      {/* 悬停迷你窗口时立即显示 */}
+      <div className="mini-hover-actions">
+        <button className="mini-action" title="恢复完整界面" onClick={() => setMini(false)}>
+          ⛶
+        </button>
+        <button
+          className="mini-action"
+          title="关闭（最小化到托盘）"
+          onClick={() => window.api.windowControl('close')}
+        >
+          ✕
+        </button>
+      </div>
       <div className="mini-progress">
         <div className="mini-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>

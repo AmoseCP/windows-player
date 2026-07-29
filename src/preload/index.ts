@@ -20,6 +20,8 @@ const api = {
   // 拖入窗口的 File 对象 → 真实文件系统路径
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   setMiniWindow: (mini: boolean): void => ipcRenderer.send('window:setMini', mini),
+  windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
+    ipcRenderer.send('window:control', action),
   pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
   getLyrics: (path: string): Promise<{ content: string } | null> =>
     ipcRenderer.invoke('lyrics:get', path),

@@ -55,6 +55,31 @@ function TopBar(): React.JSX.Element {
           主题
         </button>
       </div>
+      {window.electron.process.platform !== 'darwin' && (
+        <div className="win-controls">
+          <button
+            className="win-btn"
+            title="最小化"
+            onClick={() => window.api.windowControl('minimize')}
+          >
+            ─
+          </button>
+          <button
+            className="win-btn"
+            title="最大化/还原"
+            onClick={() => window.api.windowControl('toggleMaximize')}
+          >
+            ☐
+          </button>
+          <button
+            className="win-btn close"
+            title="关闭（最小化到托盘）"
+            onClick={() => window.api.windowControl('close')}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {themeMenu && (
         <ContextMenu
           x={themeMenu.x}

@@ -13,6 +13,7 @@ interface Api {
   getPathForFile(file: File): string
   onMediaKey(cb: (action: string) => void): () => void
   setMiniWindow(mini: boolean): void
+  windowControl(action: 'minimize' | 'toggleMaximize' | 'close'): void
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>
 }

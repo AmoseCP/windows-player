@@ -26,7 +26,7 @@ let tray: Tray | null = null
 let isQuitting = false // 仅托盘「退出」/系统退出时为 true；普通关闭 = 隐藏到托盘
 
 const NORMAL_MIN = { width: 960, height: 640 }
-const MINI_SIZE = { width: 340, height: 132 }
+const MINI_SIZE = { width: 280, height: 72 }
 let normalBounds: Electron.Rectangle | null = null // 迷你模式前的窗口位置尺寸
 
 function showMainWindow(): void {
@@ -44,6 +44,8 @@ function createWindow(): void {
     minHeight: NORMAL_MIN.height,
     show: false,
     autoHideMenuBar: true,
+    // Windows 上无边框 + 渲染进程自绘标题栏（迷你模式无系统装饰）；macOS 保留原生栏便于开发
+    frame: process.platform === 'darwin',
     title: '伯特利教会音乐播放器 Bethel Church Audio Player',
     backgroundColor: '#121212',
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -104,16 +106,19 @@ function createTray(): void {
   tray.on('double-click', showMainWindow)
 }
 
-/** 迷你模式：缩小窗口 + 置顶；恢复时还原原始尺寸位置 */
+/** 迷你模式：缩小窗口 + 置顶 + 禁止缩放；恢复时还原原始尺寸位置 */
 function setMiniMode(mini: boolean): void {
   if (!mainWindow) return
   if (mini) {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
     normalBounds = mainWindow.getBounds()
     mainWindow.setMinimumSize(MINI_SIZE.width, MINI_SIZE.height)
     mainWindow.setSize(MINI_SIZE.width, MINI_SIZE.height)
+    mainWindow.setResizable(false)
     mainWindow.setAlwaysOnTop(true)
   } else {
     mainWindow.setAlwaysOnTop(false)
+    mainWindow.setResizable(true)
     mainWindow.setMinimumSize(NORMAL_MIN.width, NORMAL_MIN.height)
     if (normalBounds) {
       mainWindow.setBounds(normalBounds)
@@ -143,6 +148,16 @@ app.whenReady().then(() => {
   registerIpcHandlers()
 
   ipcMain.on('window:setMini', (_e, mini: boolean) => setMiniMode(mini))
+
+  // 自绘标题栏的窗口控制（close 走 close 事件 → 隐藏到托盘）
+  ipcMain.on('window:control', (_e, action: string) => {
+    if (!mainWindow) return
+    if (action === 'minimize') mainWindow.minimize()
+    else if (action === 'toggleMaximize') {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize()
+      else mainWindow.maximize()
+    } else if (action === 'close') mainWindow.close()
+  })
 
   // 系统媒体键（加分项）：注册失败静默降级
   const sendMediaKey = (action: string) => (): void => {
