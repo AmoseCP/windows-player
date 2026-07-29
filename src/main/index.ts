@@ -18,7 +18,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    title: 'Bethel Church Audio Player',
+    title: '伯特利教会音乐播放器 Bethel Church Audio Player',
     backgroundColor: '#121212',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
