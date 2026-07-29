@@ -576,6 +576,57 @@ input {
   display: block;
 }
 
+/* 关于对话框 */
+.about-dialog {
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+
+.about-logo {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  border-radius: 12px;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: var(--accent);
+}
+
+.about-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: -4px 0 16px;
+}
+
+.about-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  user-select: text;
+}
+
+.about-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.about-label {
+  color: var(--text-muted);
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.about-actions {
+  justify-content: center;
+}
+
 /* 确认对话框 */
 .dialog-overlay {
   position: fixed;

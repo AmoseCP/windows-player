@@ -34,6 +34,8 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('app:coversDir', () => coversDir())
 
+  ipcMain.handle('app:version', () => app.getVersion())
+
   ipcMain.handle('data:load', () => loadData())
 
   ipcMain.on('data:save', (_e, data: AppData) => scheduleSave(data))

@@ -5,6 +5,7 @@ interface Api {
   pickFiles(): Promise<string[]>
   pickFolder(): Promise<string[]>
   getCoversDir(): Promise<string>
+  getAppVersion(): Promise<string>
   checkExists(path: string): Promise<boolean>
   loadData(): Promise<AppData | null>
   saveData(data: AppData): void

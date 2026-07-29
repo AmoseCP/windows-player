@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLibrary } from '../store/library'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
+import AboutDialog from './AboutDialog'
 
 function TopBar(): React.JSX.Element {
   const importPaths = useLibrary((s) => s.importPaths)
@@ -9,6 +10,7 @@ function TopBar(): React.JSX.Element {
   const search = useLibrary((s) => s.search)
   const themeImage = useLibrary((s) => s.themeImage)
   const [themeMenu, setThemeMenu] = useState<{ x: number; y: number } | null>(null)
+  const [showAbout, setShowAbout] = useState(false)
   const importing = progress !== null
 
   const importFiles = async (): Promise<void> => importPaths(await window.api.pickFiles())
@@ -54,6 +56,9 @@ function TopBar(): React.JSX.Element {
         >
           主题
         </button>
+        <button className="btn" title="关于本播放器" onClick={() => setShowAbout(true)}>
+          关于
+        </button>
       </div>
       {window.electron.process.platform !== 'darwin' && (
         <div className="win-controls">
@@ -95,6 +100,7 @@ function TopBar(): React.JSX.Element {
           onClose={() => setThemeMenu(null)}
         />
       )}
+      {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
     </header>
   )
 }

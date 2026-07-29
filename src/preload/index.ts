@@ -7,6 +7,7 @@ const api = {
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFiles'),
   pickFolder: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFolder'),
   getCoversDir: (): Promise<string> => ipcRenderer.invoke('app:coversDir'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
   checkExists: (path: string): Promise<boolean> => ipcRenderer.invoke('track:checkExists', path),
   loadData: (): Promise<AppData | null> => ipcRenderer.invoke('data:load'),
   saveData: (data: AppData): void => ipcRenderer.send('data:save', data),
