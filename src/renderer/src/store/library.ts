@@ -1,5 +1,15 @@
 import { create } from 'zustand'
-import type { Track, ImportProgress, Playlist, PlaylistFolder } from '../../../shared/types'
+import type {
+  Track,
+  ImportProgress,
+  Playlist,
+  PlaylistFolder,
+  YouTubeHistoryItem
+} from '../../../shared/types'
+
+function ytKey(videoId: string, listId: string | null): string {
+  return `${videoId}|${listId ?? ''}`
+}
 
 /** 当前主区视图：'library' = 音乐库，否则为歌单 id */
 export type View = 'library' | string
@@ -18,11 +28,15 @@ interface LibraryState {
   search: string
   themeImage: string | null
   themeVersion: number // 同名文件被替换时用于刷新缓存
+  youtubeHistory: YouTubeHistoryItem[] // 在线播放记录，新的在前
 
   init: () => Promise<void>
   setSidebarWidth: (w: number) => void
   setSearch: (s: string) => void
   setThemeImage: (path: string | null) => void
+  addYouTubeHistory: (item: YouTubeHistoryItem) => void
+  setYouTubeTitle: (videoId: string, listId: string | null, title: string) => void
+  removeYouTubeHistory: (videoId: string, listId: string | null) => void
   importPaths: (paths: string[]) => Promise<void>
   markMissing: (id: string) => void
 
@@ -64,6 +78,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   search: '',
   themeImage: null,
   themeVersion: 0,
+  youtubeHistory: [],
 
   init: async () => {
     set({ coversDir: await window.api.getCoversDir() })
@@ -74,6 +89,34 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   setSearch: (search) => set({ search }),
 
   setThemeImage: (themeImage) => set((s) => ({ themeImage, themeVersion: s.themeVersion + 1 })),
+
+  // 同一视频/歌单重复播放时移到最前并更新时间，最多保留 100 条
+  addYouTubeHistory: (item) =>
+    set((s) => {
+      const key = ytKey(item.videoId, item.listId)
+      const rest = s.youtubeHistory.filter((h) => ytKey(h.videoId, h.listId) !== key)
+      const old = s.youtubeHistory.find((h) => ytKey(h.videoId, h.listId) === key)
+      return {
+        youtubeHistory: [{ ...item, title: item.title ?? old?.title ?? null }, ...rest].slice(
+          0,
+          100
+        )
+      }
+    }),
+
+  setYouTubeTitle: (videoId, listId, title) =>
+    set((s) => ({
+      youtubeHistory: s.youtubeHistory.map((h) =>
+        ytKey(h.videoId, h.listId) === ytKey(videoId, listId) ? { ...h, title } : h
+      )
+    })),
+
+  removeYouTubeHistory: (videoId, listId) =>
+    set((s) => ({
+      youtubeHistory: s.youtubeHistory.filter(
+        (h) => ytKey(h.videoId, h.listId) !== ytKey(videoId, listId)
+      )
+    })),
 
   importPaths: async (paths) => {
     if (paths.length === 0 || get().importProgress) return

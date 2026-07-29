@@ -24,6 +24,8 @@ const api = {
   windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
     ipcRenderer.send('window:control', action),
   openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
+  getYouTubeTitle: (url: string): Promise<string | null> =>
+    ipcRenderer.invoke('youtube:title', url),
   onMiniHover: (cb: (hovered: boolean) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, hovered: boolean): void => cb(hovered)
     ipcRenderer.on('mini:hover', listener)

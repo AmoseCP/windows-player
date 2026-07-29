@@ -13,6 +13,7 @@ function collect(): AppData {
     folders: lib.folders,
     playlists: lib.playlists,
     rootPlaylistIds: lib.rootPlaylistIds,
+    youtubeHistory: lib.youtubeHistory,
     settings: {
       volume: player.volume,
       muted: player.muted,
@@ -39,7 +40,8 @@ export async function initPersistence(): Promise<void> {
       playlists: data.playlists ?? {},
       rootPlaylistIds: data.rootPlaylistIds ?? [],
       sidebarWidth: data.settings?.sidebarWidth ?? 220,
-      themeImage: data.settings?.themeImage ?? null
+      themeImage: data.settings?.themeImage ?? null,
+      youtubeHistory: data.youtubeHistory ?? []
     })
     const st = data.settings
     const last = st?.lastPlayedTrackId

@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog } from 'electron'
+import { app, ipcMain, dialog, net } from 'electron'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { parseFile } from 'music-metadata'
@@ -35,6 +35,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:coversDir', () => coversDir())
 
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // 通过 oEmbed 取视频标题（无需 API key），失败返回 null
+  ipcMain.handle('youtube:title', async (_e, videoUrl: string) => {
+    try {
+      const res = await net.fetch(
+        'https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(videoUrl)
+      )
+      if (!res.ok) return null
+      const data = (await res.json()) as { title?: unknown }
+      return typeof data.title === 'string' ? data.title : null
+    } catch {
+      return null
+    }
+  })
 
   ipcMain.handle('data:load', () => loadData())
 

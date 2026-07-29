@@ -51,6 +51,14 @@ export interface AppSettings {
   themeImage: string | null // 自定义背景图片的绝对路径（userData/theme 下）
 }
 
+export interface YouTubeHistoryItem {
+  url: string
+  videoId: string // 为空表示纯歌单链接
+  listId: string | null
+  title: string | null // oEmbed 获取，失败时为 null 显示原链接
+  playedAt: number
+}
+
 /** userData/library.json 的完整结构 */
 export interface AppData {
   tracks: Record<string, Track>
@@ -59,4 +67,5 @@ export interface AppData {
   playlists: Record<string, Playlist>
   rootPlaylistIds: string[]
   settings: AppSettings
+  youtubeHistory?: YouTubeHistoryItem[]
 }
