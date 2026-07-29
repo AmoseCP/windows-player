@@ -2,8 +2,6 @@ import {
   app,
   shell,
   BrowserWindow,
-  protocol,
-  net,
   globalShortcut,
   ipcMain,
   Tray,
@@ -17,11 +15,10 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
 import { flushSaveSync } from './store'
+import { registerLocalFileSchemes, registerLocalFileProtocol } from './localfile'
 
 // localfile:// 协议供渲染进程流式播放本地音频文件（需在 app ready 前注册特权）
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'localfile', privileges: { stream: true, supportFetchAPI: true } }
-])
+registerLocalFileSchemes()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -166,18 +163,7 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.bethelchurch.audioplayer')
 
-  // localfile:///<绝对路径> → 流式读取本地文件（封面图 + 音频播放），转发 Range 头支持进度拖动
-  protocol.handle('localfile', async (request) => {
-    try {
-      const { pathname } = new URL(request.url)
-      return await net.fetch('file://' + pathname, {
-        headers: request.headers,
-        bypassCustomProtocolHandlers: true
-      })
-    } catch {
-      return new Response(null, { status: 404 })
-    }
-  })
+  registerLocalFileProtocol()
 
   // 打包后页面为 file:// 加载，请求不带 Referer，YouTube 嵌入播放器会报
   // Error 153（强制要求有效 Referer）；给嵌入端点补上
