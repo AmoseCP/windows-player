@@ -138,7 +138,7 @@ function OnlinePlayer(): React.JSX.Element {
           <div className="online-hint">
             <div>粘贴 YouTube 链接直接播放，或输入关键词搜索</div>
             <div className="online-hint-sub">
-              需要联网；关闭此面板即停止播放。部分视频版权方禁止嵌入（显示"无法播放"），
+              需要联网；关闭此面板即停止播放。部分视频版权方禁止嵌入（显示「无法播放」），
               播放后点上方「在窗口中打开」即可正常观看。
             </div>
           </div>
