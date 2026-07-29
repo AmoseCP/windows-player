@@ -48,6 +48,7 @@ export interface AppSettings {
   playMode: PlayMode
   lastPlayedTrackId: string | null
   sidebarWidth: number
+  themeImage: string | null // 自定义背景图片的绝对路径（userData/theme 下）
 }
 
 /** userData/library.json 的完整结构 */

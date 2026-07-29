@@ -12,10 +12,13 @@ import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import TrackList from './components/TrackList'
 import PlayerBar from './components/PlayerBar'
+import MiniPlayer from './components/MiniPlayer'
+import LyricsPanel from './components/LyricsPanel'
 import { useLibrary } from './store/library'
 import { usePlayer } from './store/player'
 import { initPersistence } from './store/persistence'
 import { useHotkeys } from './hooks/useHotkeys'
+import { localFileUrl } from './utils'
 
 const SIDEBAR_MIN = 160
 const SIDEBAR_MAX = 400
@@ -39,6 +42,17 @@ function App(): React.JSX.Element {
   const dragging = useRef(false)
   const importPaths = useLibrary((s) => s.importPaths)
   const notice = usePlayer((s) => s.notice)
+  const miniMode = usePlayer((s) => s.miniMode)
+  const showLyrics = usePlayer((s) => s.showLyrics)
+  const themeImage = useLibrary((s) => s.themeImage)
+  const themeVersion = useLibrary((s) => s.themeVersion)
+
+  // 自定义背景：图片上叠加深色渐变保证前景可读
+  const themeStyle = themeImage
+    ? {
+        backgroundImage: `linear-gradient(rgba(12, 12, 14, 0.78), rgba(12, 12, 14, 0.86)), url("${localFileUrl(themeImage)}?v=${themeVersion}")`
+      }
+    : undefined
 
   // 距离阈值：区分点击/双击与拖拽
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -128,8 +142,23 @@ function App(): React.JSX.Element {
     window.addEventListener('mouseup', onUp)
   }, [])
 
+  // 迷你模式：只渲染迷你播放条
+  if (miniMode) {
+    return (
+      <div className="app mini" style={themeStyle}>
+        <MiniPlayer />
+        {notice && <div className="toast">{notice}</div>}
+      </div>
+    )
+  }
+
   return (
-    <div className="app" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div
+      className={`app${themeImage ? ' themed' : ''}`}
+      style={themeStyle}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDrop}
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -145,7 +174,10 @@ function App(): React.JSX.Element {
             onMouseDown={startResize}
           />
           <main className="main-area">
-            <TrackList />
+            <div className="main-scroll">
+              <TrackList />
+            </div>
+            {showLyrics && <LyricsPanel />}
           </main>
         </div>
         <DragOverlay dropAnimation={null}>

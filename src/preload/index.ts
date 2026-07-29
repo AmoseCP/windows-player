@@ -19,6 +19,10 @@ const api = {
   },
   // 拖入窗口的 File 对象 → 真实文件系统路径
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  setMiniWindow: (mini: boolean): void => ipcRenderer.send('window:setMini', mini),
+  pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
+  getLyrics: (path: string): Promise<{ content: string } | null> =>
+    ipcRenderer.invoke('lyrics:get', path),
   onMediaKey: (cb: (action: string) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, action: string): void => cb(action)
     ipcRenderer.on('media:key', listener)

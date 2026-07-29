@@ -15,6 +15,8 @@ interface PlayerState {
   playMode: PlayMode
   history: number[] // 随机模式的「上一首」回退栈（队列下标）
   notice: string | null // 短暂提示（文件不存在 / 格式不支持）
+  miniMode: boolean // 迷你播放器模式
+  showLyrics: boolean // 歌词面板
 
   startQueue: (queue: string[], index: number) => void
   togglePlay: () => void
@@ -26,6 +28,8 @@ interface PlayerState {
   setPlayMode: (mode: PlayMode) => void
   showNotice: (msg: string) => void
   removeFromQueue: (trackId: string) => void
+  setMini: (mini: boolean) => void
+  toggleLyrics: () => void
 }
 
 export function currentTrackId(s: Pick<PlayerState, 'queue' | 'queueIndex'>): string | null {
@@ -44,6 +48,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playMode: 'order',
   history: [],
   notice: null,
+  miniMode: false,
+  showLyrics: false,
 
   startQueue: (queue, index) =>
     set((s) => ({
@@ -127,6 +133,13 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     noticeTimer = setTimeout(() => set({ notice: null }), 3000)
     set({ notice: msg })
   },
+
+  setMini: (mini) => {
+    window.api.setMiniWindow(mini)
+    set({ miniMode: mini })
+  },
+
+  toggleLyrics: () => set((s) => ({ showLyrics: !s.showLyrics })),
 
   // 歌曲被从音乐库删除时同步清理播放队列
   removeFromQueue: (trackId) => {

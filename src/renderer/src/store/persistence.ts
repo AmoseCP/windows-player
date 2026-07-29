@@ -18,7 +18,8 @@ function collect(): AppData {
       muted: player.muted,
       playMode: player.playMode,
       lastPlayedTrackId: currentTrackId(player),
-      sidebarWidth: lib.sidebarWidth
+      sidebarWidth: lib.sidebarWidth,
+      themeImage: lib.themeImage
     }
   }
 }
@@ -37,7 +38,8 @@ export async function initPersistence(): Promise<void> {
       folders: data.folders ?? [],
       playlists: data.playlists ?? {},
       rootPlaylistIds: data.rootPlaylistIds ?? [],
-      sidebarWidth: data.settings?.sidebarWidth ?? 220
+      sidebarWidth: data.settings?.sidebarWidth ?? 220,
+      themeImage: data.settings?.themeImage ?? null
     })
     const st = data.settings
     const last = st?.lastPlayedTrackId

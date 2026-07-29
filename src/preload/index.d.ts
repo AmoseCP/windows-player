@@ -12,6 +12,9 @@ interface Api {
   onImportProgress(cb: (p: ImportProgress) => void): () => void
   getPathForFile(file: File): string
   onMediaKey(cb: (action: string) => void): () => void
+  setMiniWindow(mini: boolean): void
+  pickThemeImage(): Promise<string | null>
+  getLyrics(path: string): Promise<{ content: string } | null>
 }
 
 declare global {

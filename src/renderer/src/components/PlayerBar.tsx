@@ -20,6 +20,7 @@ function PlayerBar(): React.JSX.Element {
   const muted = usePlayer((s) => s.muted)
   const playMode = usePlayer((s) => s.playMode)
   const { togglePlay, next, prev, setVolume, toggleMute, cyclePlayMode } = usePlayer.getState()
+  const showLyrics = usePlayer((s) => s.showLyrics)
   const track = useLibrary((s) => (trackId ? s.tracks[trackId] : null))
   const coversDir = useLibrary((s) => s.coversDir)
   const { currentTime, duration, seek } = useAudio()
@@ -103,6 +104,20 @@ function PlayerBar(): React.JSX.Element {
         </div>
       </div>
       <div className="playerbar-right">
+        <button
+          className={`control-btn${showLyrics ? ' mode-btn active' : ''}`}
+          title="歌词"
+          onClick={() => usePlayer.getState().toggleLyrics()}
+        >
+          词
+        </button>
+        <button
+          className="control-btn"
+          title="迷你模式"
+          onClick={() => usePlayer.getState().setMini(true)}
+        >
+          ⧉
+        </button>
         <button
           className={`control-btn mode-btn${playMode !== 'order' ? ' active' : ''}`}
           title={`播放模式：${mode.label}（点击切换，右键选择）`}

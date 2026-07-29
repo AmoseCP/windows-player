@@ -4,7 +4,8 @@ import { useLibrary } from '../store/library'
 import { localFileUrl } from '../utils'
 
 // 单例 audio 元素：MP4 用 audio 加载天然只出声不出画
-const audio = new Audio()
+// 导出供歌词面板等只读订阅播放进度（写操作仅限本 hook）
+export const audio = new Audio()
 
 interface AudioState {
   currentTime: number

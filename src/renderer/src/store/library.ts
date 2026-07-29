@@ -16,10 +16,13 @@ interface LibraryState {
   importProgress: ImportProgress | null
   sidebarWidth: number
   search: string
+  themeImage: string | null
+  themeVersion: number // 同名文件被替换时用于刷新缓存
 
   init: () => Promise<void>
   setSidebarWidth: (w: number) => void
   setSearch: (s: string) => void
+  setThemeImage: (path: string | null) => void
   importPaths: (paths: string[]) => Promise<void>
   markMissing: (id: string) => void
 
@@ -59,6 +62,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   importProgress: null,
   sidebarWidth: 220,
   search: '',
+  themeImage: null,
+  themeVersion: 0,
 
   init: async () => {
     set({ coversDir: await window.api.getCoversDir() })
@@ -67,6 +72,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   setSidebarWidth: (w) => set({ sidebarWidth: w }),
 
   setSearch: (search) => set({ search }),
+
+  setThemeImage: (themeImage) => set((s) => ({ themeImage, themeVersion: s.themeVersion + 1 })),
 
   importPaths: async (paths) => {
     if (paths.length === 0 || get().importProgress) return
