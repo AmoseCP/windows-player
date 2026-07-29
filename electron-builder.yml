@@ -15,8 +15,10 @@ win:
   executableName: music-player
   icon: build/icon.ico
   target:
-    - nsis
-    - portable
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -24,6 +26,8 @@ nsis:
   createDesktopShortcut: always
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # 按用户安装，无需管理员权限即可安装使用
+  perMachine: false
 portable:
   artifactName: ${name}-${version}-portable.${ext}
 mac:

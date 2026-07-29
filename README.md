@@ -9,7 +9,15 @@ Windows 桌面音乐播放器（Electron + React + Vite）。支持音乐库管�
 - `.mp4` 按纯音频处理，只出声不出画
 - `.wma` 可导入；Chromium 无法解码时播放会提示「该格式暂不支持播放」并自动跳到下一首
 
-## 环境要求
+## 运行要求（最终用户）
+
+- Windows 10 / 11（x64），**无需安装任何其它软件**：
+  - 应用自带 Chromium 与 Node 运行时，不需要安装 Node.js、浏览器或 VC++ 运行库
+  - 全部依赖为纯 JS，无原生模块
+  - 安装包为按用户安装（`perMachine: false`），**不需要管理员权限**；便携版解压即用、双击直接运行
+- 安装包未做代码签名，首次运行时 Windows SmartScreen 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」即可
+
+## 开发环境要求
 
 - Node.js ≥ 20（开发时使用 Node 24 + npm 11 验证）
 - 开发可在 macOS / Windows / Linux 进行；**Windows 安装包的最终构建与验证需在 Windows 上进行**
