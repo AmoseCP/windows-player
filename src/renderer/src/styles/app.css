@@ -533,13 +533,12 @@ input {
 }
 
 /* 级联子菜单：hover 父项时显示 */
+/* 注意：子菜单不能加 overflow，否则会把嵌套的下一级子菜单（left:100% 在盒外）裁剪掉 */
 .context-menu.submenu {
   display: none;
   left: 100%;
   top: -5px;
   position: absolute;
-  max-height: 320px;
-  overflow-y: auto;
 }
 
 .menu-item.has-submenu:hover > .context-menu.submenu {
