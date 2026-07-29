@@ -9,27 +9,90 @@ Windows 桌面音乐播放器（Electron + React + Vite）。支持音乐库管�
 - `.mp4` 按纯音频处理，只出声不出画
 - `.wma` 可导入；Chromium 无法解码时播放会提示「该格式暂不支持播放」并自动跳到下一首
 
-## 开发
+## 环境要求
+
+- Node.js ≥ 20（开发时使用 Node 24 + npm 11 验证）
+- 开发可在 macOS / Windows / Linux 进行；**Windows 安装包的最终构建与验证需在 Windows 上进行**
+
+## 安装依赖
 
 ```bash
-npm install        # 安装依赖
-npm run dev        # 开发模式（热更新）
-npm run typecheck  # 类型检查
-npm run lint       # 代码检查
+npm install
 ```
 
-## 打包（Windows）
+安装完成后会自动执行 `electron-builder install-app-deps`（postinstall）处理原生依赖。
+
+## 开发运行
 
 ```bash
-npm run build:win
+npm run dev
 ```
 
-产物在 `dist/` 目录：
+以开发模式启动应用：主进程/preload 修改后自动重启，渲染进程支持热更新（HMR）。开发模式下可按 F12 打开 DevTools。
 
-- `music-player-<版本>-setup.exe` — NSIS 安装包（可选择安装目录）
-- `music-player-<版本>-portable.exe` — 便携版
+## 测试与检查
 
-> ⚠️ 在 macOS/Linux 上交叉打包 Windows 产物有已知限制（图标资源处理依赖 wine、无法签名等），**最终安装包请在 Windows 机器上执行 `npm run build:win` 构建并验证**。
+本项目无单元测试框架，质量保障 = 静态检查 + 功能自测清单。
+
+### 静态检查
+
+```bash
+npm run typecheck        # TypeScript 类型检查（node + web 两套 tsconfig）
+npm run typecheck:node   # 仅主进程 / preload
+npm run typecheck:web    # 仅渲染进程
+npm run lint             # ESLint（含 prettier 规则）
+npm run format           # Prettier 全量格式化
+```
+
+`npm run build` 会先跑完整 typecheck，类型不过则构建失败。
+
+### 功能自测清单
+
+改动后运行 `npm run dev`，按下列 8 条逐项手测（与需求验收标准一致；发布前需在 Windows 上完整过一遍）：
+
+1. 能通过按钮和拖入窗口两种方式导入 mp3/flac/m4a/mp4 文件，元数据和封面正确显示
+2. 播放 mp4 文件时只有声音，界面上没有任何视频画面
+3. 能新建歌单文件夹和歌单，歌单可放入文件夹，树形侧边栏展开/收起正常
+4. 能把歌曲加入歌单，在歌单内拖动调整顺序，重启应用后顺序保持
+5. 播放/暂停/上一首/下一首/进度拖动/音量/四种播放模式全部工作正常
+6. 删除歌单、删除文件夹（含确认）、从歌单移除歌曲、重命名均正常
+7. 重启应用后，音乐库、歌单结构、音量等全部恢复
+8. 搜索框能实时过滤当前列表
+
+补充的边界用例：导入无标签文件（应显示文件名）、导入 200+ 文件的目录（界面不冻结、进度持续更新）、重复导入同一文件（跳过）、播放前删除磁盘源文件（提示「文件不存在」并标灰，不崩溃）、手动写坏 `library.json` 后启动（自动备份坏文件并以空库启动）。
+
+## 编译与打包
+
+### 仅编译（不出安装包）
+
+```bash
+npm run build
+```
+
+执行 typecheck + electron-vite 生产构建，产物在 `out/`（main / preload / renderer 三部分）。
+
+```bash
+npm run start
+```
+
+以生产模式预览 `out/` 中的构建产物（不打包直接运行，用于验证生产行为与开发模式的差异）。
+
+### 打包安装包
+
+```bash
+npm run build:win      # Windows：NSIS 安装包 + 便携版 exe
+npm run build:mac      # macOS（开发自用）
+npm run build:unpack   # 只输出未打包的应用目录（dist/…-unpacked），排查打包问题用
+```
+
+Windows 产物在 `dist/` 目录：
+
+- `music-player-<版本>-setup.exe` — NSIS 安装包（安装时可选择安装目录）
+- `music-player-<版本>-portable.exe` — 便携版，免安装直接运行
+
+打包配置见 `electron-builder.yml`（appId、图标、target 等），应用图标在 `build/icon.ico`。
+
+> ⚠️ 在 macOS/Linux 上交叉打包 Windows 产物有已知限制（图标资源处理依赖 wine、无法签名等），**最终安装包请在 Windows 机器上执行 `npm run build:win` 构建并按上方清单验证**。
 
 ## 数据存储
 
@@ -40,6 +103,16 @@ npm run build:win
 
 歌曲只记录文件路径，不复制文件本体。
 
+## 项目结构
+
+```
+src/
+├── main/            # 主进程：窗口/协议、IPC、目录扫描、元数据解析、JSON 持久化
+├── preload/         # contextBridge 暴露的白名单 API（含类型声明）
+├── renderer/src/    # React 界面：组件、zustand store、hooks、样式
+└── shared/          # 主/渲染进程共享的数据结构与 IPC 契约类型
+```
+
 ## 快捷键
 
 | 按键 | 功能 |
@@ -48,14 +121,3 @@ npm run build:win
 | Ctrl + → | 下一首 |
 | Ctrl + ← | 上一首 |
 | 系统媒体键 | 播放/暂停、上一曲、下一曲 |
-
-## 自测清单（发布前在 Windows 上逐条验证）
-
-1. 能通过按钮和拖入窗口两种方式导入 mp3/flac/m4a/mp4 文件，元数据和封面正确显示
-2. 播放 mp4 文件时只有声音，界面上没有任何视频画面
-3. 能新建歌单文件夹和歌单，歌单可放入文件夹，树形侧边栏展开/收起正常
-4. 能把歌曲加入歌单，在歌单内拖动调整顺序，重启应用后顺序保持
-5. 播放/暂停/上一首/下一首/进度拖动/音量/四种播放模式全部工作正常
-6. 删除歌单、删除文件夹（含确认）、从歌单移除歌曲、重命名均正常
-7. 重启应用后，音乐库、歌单结构、音量等全部恢复
-8. 搜索框能实时过滤当前列表
