@@ -6,6 +6,7 @@ export interface MenuItem {
   danger?: boolean
   submenu?: MenuItem[] // 级联子菜单（添加到歌单）
   disabled?: boolean
+  checked?: boolean // 单选类菜单的当前选中项（播放模式）
 }
 
 interface ContextMenuProps {
@@ -72,6 +73,9 @@ function MenuList({
             onClose()
           }}
         >
+          {item.checked !== undefined && (
+            <span className="menu-check">{item.checked ? '✓' : ''}</span>
+          )}
           <span className="menu-label">{item.label}</span>
           {item.submenu && (
             <>

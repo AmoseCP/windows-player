@@ -515,6 +515,12 @@ input {
   flex: 1;
 }
 
+.menu-check {
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
 .menu-arrow {
   color: var(--text-muted);
   font-size: 11px;

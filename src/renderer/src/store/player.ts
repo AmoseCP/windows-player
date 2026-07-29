@@ -23,6 +23,7 @@ interface PlayerState {
   setVolume: (v: number) => void
   toggleMute: () => void
   cyclePlayMode: () => void
+  setPlayMode: (mode: PlayMode) => void
   showNotice: (msg: string) => void
   removeFromQueue: (trackId: string) => void
 }
@@ -118,6 +119,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set((s) => ({
       playMode: PLAY_MODE_ORDER[(PLAY_MODE_ORDER.indexOf(s.playMode) + 1) % PLAY_MODE_ORDER.length]
     })),
+
+  setPlayMode: (mode) => set({ playMode: mode }),
 
   showNotice: (msg) => {
     clearTimeout(noticeTimer)
