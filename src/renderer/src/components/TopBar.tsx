@@ -11,7 +11,7 @@ function TopBar(): React.JSX.Element {
 
   return (
     <header className="topbar">
-      <div className="topbar-title">音乐播放器</div>
+      <div className="topbar-title">Bethel Church Audio Player</div>
       <input
         className="topbar-search"
         type="text"

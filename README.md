@@ -1,4 +1,4 @@
-# 音乐播放器
+# Bethel Church Audio Player
 
 Windows 桌面音乐播放器（Electron + React + Vite）。支持音乐库管理、两层歌单结构（歌单文件夹 → 歌单）、拖拽排序、四种播放模式、搜索与数据持久化。
 
@@ -95,8 +95,8 @@ npm run build:unpack   # 只输出未打包的应用目录（dist/…-unpacked�
 
 Windows 产物在 `dist/` 目录：
 
-- `music-player-<版本>-setup.exe` — NSIS 安装包（安装时可选择安装目录）
-- `music-player-<版本>-portable.exe` — 便携版，免安装直接运行
+- `bethel-church-audio-player-<版本>-setup.exe` — NSIS 安装包（安装时可选择安装目录）
+- `bethel-church-audio-player-<版本>-portable.exe` — 便携版，免安装直接运行
 
 打包配置见 `electron-builder.yml`（appId、图标、target 等），应用图标在 `build/icon.ico`。
 
@@ -104,7 +104,7 @@ Windows 产物在 `dist/` 目录：
 
 ## 数据存储
 
-所有数据保存在 `app.getPath('userData')` 目录（Windows 下为 `%APPDATA%/music-player`）：
+所有数据保存在 `app.getPath('userData')` 目录（Windows 下为 `%APPDATA%/Bethel Church Audio Player`）：
 
 - `library.json` — 音乐库、歌单结构、播放设置（变更后 500ms 防抖自动保存，原子写入；文件损坏时自动备份并以空库启动）
 - `covers/` — 歌曲内嵌封面缓存（按内容 hash 去重，JSON 中只存文件名）

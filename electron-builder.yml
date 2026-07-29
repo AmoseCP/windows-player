@@ -1,5 +1,5 @@
-appId: com.musicplayer.app
-productName: 音乐播放器
+appId: com.bethelchurch.audioplayer
+productName: Bethel Church Audio Player
 directories:
   buildResources: build
 files:
@@ -12,7 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: music-player
+  executableName: bethel-church-audio-player
   icon: build/icon.ico
   target:
     - target: nsis

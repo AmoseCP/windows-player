@@ -18,7 +18,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    title: '音乐播放器',
+    title: 'Bethel Church Audio Player',
     backgroundColor: '#121212',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -47,7 +47,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.musicplayer.app')
+  electronApp.setAppUserModelId('com.bethelchurch.audioplayer')
 
   // localfile:///<绝对路径> → 流式读取本地文件（封面图 + 音频播放），转发 Range 头支持进度拖动
   protocol.handle('localfile', async (request) => {
