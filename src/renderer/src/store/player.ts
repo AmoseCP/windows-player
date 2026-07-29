@@ -87,12 +87,12 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
     const nextIndex = s.queueIndex + 1
     if (nextIndex >= len) {
-      if (s.playMode === 'loop' || s.playMode === 'single') {
-        // 单曲循环下手动切歌按列表循环处理
-        set({ queueIndex: 0, playing: true, playNonce: s.playNonce + 1 })
-      } else if (auto) {
-        set({ playing: false }) // 顺序播放：到末尾停止
+      if (auto && s.playMode === 'order') {
+        set({ playing: false }) // 顺序播放自然播完到末尾：停止
+        return
       }
+      // 手动点击或循环模式：绕回开头
+      set({ queueIndex: 0, playing: true, playNonce: s.playNonce + 1 })
       return
     }
     set({ queueIndex: nextIndex, playing: true, playNonce: s.playNonce + 1 })
@@ -107,13 +107,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       set({ queueIndex: idx, history, playing: true, playNonce: s.playNonce + 1 })
       return
     }
-    const prevIndex = s.queueIndex - 1
-    if (prevIndex < 0) {
-      if (s.playMode === 'loop') {
-        set({ queueIndex: s.queue.length - 1, playing: true, playNonce: s.playNonce + 1 })
-      }
-      return
-    }
+    // 上一曲总是手动操作：在开头则绕到末尾
+    const prevIndex = s.queueIndex - 1 < 0 ? s.queue.length - 1 : s.queueIndex - 1
     set({ queueIndex: prevIndex, playing: true, playNonce: s.playNonce + 1 })
   },
 
