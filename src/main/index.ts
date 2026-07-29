@@ -50,7 +50,9 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // 在线播放用 <webview> 加载完整版 YouTube 观看页（不受嵌入限制）
+      webviewTag: true
     }
   })
 

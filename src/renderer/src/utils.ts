@@ -45,9 +45,8 @@ export function parseYouTubeUrl(input: string): YouTubeRef | null {
   }
   const host = url.hostname.replace(/^(www|m|music)\./, '')
   if (host !== 'youtube.com' && host !== 'youtu.be') return null
-  let listId = url.searchParams.get('list')
-  // RD 开头是根据单曲自动生成的「电台混播」列表，不支持嵌入播放，丢弃只播视频本身
-  if (listId && listId.startsWith('RD')) listId = null
+  // 完整观看页播放不受列表类型限制，电台混播（RD*）也保留
+  const listId = url.searchParams.get('list')
   let videoId: string | null = null
   if (host === 'youtu.be') {
     videoId = url.pathname.slice(1).split('/')[0] || null
