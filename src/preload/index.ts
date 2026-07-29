@@ -24,6 +24,7 @@ const api = {
   windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
     ipcRenderer.send('window:control', action),
   openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
+  openYouTubeWindow: (url: string): void => ipcRenderer.send('youtube:openWindow', url),
   getYouTubeTitle: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('youtube:title', url),
   searchYouTube: (query: string): Promise<YouTubeSearchResult[]> =>

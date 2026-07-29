@@ -190,6 +190,25 @@ app.whenReady().then(() => {
     loginWin.loadURL('https://www.youtube.com')
   })
 
+  // 完整站点播放窗口：版权方禁止嵌入的视频、电台混播（list=RD*）都能播，
+  // 共享默认会话，Premium 免广告同样生效
+  ipcMain.on('youtube:openWindow', (_e, url: string) => {
+    try {
+      const u = new URL(url)
+      const host = u.hostname.replace(/^(www|m|music)\./, '')
+      if (host !== 'youtube.com' && host !== 'youtu.be') return
+    } catch {
+      return
+    }
+    const win = new BrowserWindow({
+      width: 1080,
+      height: 720,
+      autoHideMenuBar: true,
+      title: 'YouTube 播放'
+    })
+    win.loadURL(url)
+  })
+
   // 自绘标题栏的窗口控制（close 走 close 事件 → 隐藏到托盘）
   ipcMain.on('window:control', (_e, action: string) => {
     if (!mainWindow) return

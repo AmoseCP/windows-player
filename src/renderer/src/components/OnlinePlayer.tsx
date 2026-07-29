@@ -27,6 +27,7 @@ function formatPlayedAt(t: number): string {
 function OnlinePlayer(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [current, setCurrent] = useState<YouTubeRef | null>(null)
+  const [currentUrl, setCurrentUrl] = useState('')
   const [results, setResults] = useState<YouTubeSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchFailed, setSearchFailed] = useState(false)
@@ -35,6 +36,7 @@ function OnlinePlayer(): React.JSX.Element {
 
   const startPlay = (ref: YouTubeRef, url: string, knownTitle?: string): void => {
     setCurrent(ref)
+    setCurrentUrl(url)
     // 开始在线播放时暂停本地播放，避免两路声音
     usePlayer.setState({ playing: false })
     useLibrary.getState().addYouTubeHistory({
@@ -99,6 +101,15 @@ function OnlinePlayer(): React.JSX.Element {
         <button className="btn" onClick={submit} disabled={searching}>
           {searching ? '搜索中…' : inputIsUrl ? '播放' : '搜索'}
         </button>
+        {current && (
+          <button
+            className="btn"
+            title="版权方禁止嵌入的视频、电台混播（Mix）请用此方式播放，Premium 免广告同样有效"
+            onClick={() => window.api.openYouTubeWindow(currentUrl)}
+          >
+            在窗口中打开
+          </button>
+        )}
         <button
           className="btn"
           title="登录 YouTube 账号（Premium 会员可免广告）"
@@ -126,7 +137,10 @@ function OnlinePlayer(): React.JSX.Element {
         ) : (
           <div className="online-hint">
             <div>粘贴 YouTube 链接直接播放，或输入关键词搜索</div>
-            <div className="online-hint-sub">需要联网；关闭此面板即停止播放。</div>
+            <div className="online-hint-sub">
+              需要联网；关闭此面板即停止播放。部分视频版权方禁止嵌入（显示"无法播放"），
+              播放后点上方「在窗口中打开」即可正常观看。
+            </div>
           </div>
         )}
       </div>

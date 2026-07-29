@@ -16,6 +16,7 @@ interface Api {
   setMiniWindow(mini: boolean): void
   windowControl(action: 'minimize' | 'toggleMaximize' | 'close'): void
   openYouTubeLogin(): void
+  openYouTubeWindow(url: string): void
   getYouTubeTitle(url: string): Promise<string | null>
   searchYouTube(query: string): Promise<YouTubeSearchResult[]>
   onMiniHover(cb: (hovered: boolean) => void): () => void
