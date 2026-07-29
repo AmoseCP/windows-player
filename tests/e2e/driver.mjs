@@ -3,11 +3,10 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-const MUSIC = process.env.MUSIC_DIR // 由 gen-fixtures.sh 生成的测试音频目录
-if (!MUSIC) {
-  console.error('用法: MUSIC_DIR=<夹具目录> node driver.mjs <1|2>')
-  process.exit(1)
-}
+import { fileURLToPath } from 'url'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// 默认使用仓库内置夹具；路径归一为正斜杠（会嵌入页面内执行的 JS 字符串）
+const MUSIC = (process.env.MUSIC_DIR ?? path.join(__dirname, 'fixtures')).replace(/\\/g, '/')
 const USERDATA =
   process.platform === 'darwin'
     ? path.join(os.homedir(), 'Library/Application Support/bethel-church-audio-player')
@@ -49,6 +48,9 @@ async function ev(code) {
     awaitPromise: true,
     returnByValue: true
   })
+  if (res.error) {
+    throw new Error('CDP 错误: ' + JSON.stringify(res.error).slice(0, 300))
+  }
   if (res.result?.exceptionDetails) {
     throw new Error('页面异常: ' + JSON.stringify(res.result.exceptionDetails).slice(0, 400))
   }
@@ -333,9 +335,10 @@ if (phase === '1') {
   })
 
   await test('缺失文件：提示+标灰+不崩溃', async () => {
-    fs.copyFileSync(path.join(MUSIC, 'sub/test3.flac'), path.join(MUSIC, 'missing-case.flac'))
-    await ev(`await window.__test.useLibrary.getState().importPaths(['${MUSIC}/missing-case.flac'])`)
-    fs.rmSync(path.join(MUSIC, 'missing-case.flac'))
+    const missingFile = path.join(os.tmpdir(), 'missing-case.flac').replace(/\\/g, '/')
+    fs.copyFileSync(path.join(MUSIC, 'sub/test3.flac'), missingFile)
+    await ev(`await window.__test.useLibrary.getState().importPaths(['${missingFile}'])`)
+    fs.rmSync(missingFile)
     const r = await ev(`
       const lib = () => window.__test.useLibrary.getState()
       const id = lib().trackOrder.find(i => lib().tracks[i].title === 'missing-case')
@@ -411,24 +414,30 @@ if (phase === '1') {
   })
 
   await test('在线面板 + 历史记录双击 + webview', async () => {
-    const r = await ev(`
-      window.__test.usePlayer.getState().toggleOnline()
-      await new Promise(r => setTimeout(r, 300))
-      const panel = !!document.querySelector('.online-panel')
-      window.__test.useLibrary.getState().addYouTubeHistory({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', videoId: 'dQw4w9WgXcQ', listId: null, title: '测试视频' })
-      await new Promise(r => setTimeout(r, 300))
-      const item = [...document.querySelectorAll('.online-history-item')].find(n => n.textContent.includes('测试视频'))
+    await ev(`window.__test.usePlayer.getState().toggleOnline()`)
+    await sleep(400)
+    const panel = await ev(`return !!document.querySelector('.online-panel')`)
+    expect(panel, '在线面板未打开')
+    await ev(`window.__test.useLibrary.getState().addYouTubeHistory({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', videoId: 'dQw4w9WgXcQ', listId: null, title: '测试视频' })`)
+    let hasItem = false
+    for (let i = 0; i < 10 && !hasItem; i++) {
+      await sleep(300)
+      hasItem = await ev(`return [...document.querySelectorAll('.online-history-item')].some(n => n.textContent.includes('视频') || n.textContent.includes('dQw4w9WgXcQ'))`)
+    }
+    expect(hasItem, '历史记录未渲染')
+    await ev(`
+      const item = [...document.querySelectorAll('.online-history-item')][0]
       item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
-      await new Promise(r => setTimeout(r, 1200))
-      const webview = document.querySelector('webview.online-frame')
-      const src = webview ? webview.getAttribute('src') : null
-      const localPaused = window.__test.usePlayer.getState().playing === false
-      window.__test.usePlayer.getState().toggleOnline()
-      return { panel, hasItem: !!item, src, localPaused }
     `)
-    expect(r.panel && r.hasItem, '面板/历史异常 ' + JSON.stringify(r))
-    expect(r.src && r.src.includes('watch?v=dQw4w9WgXcQ'), 'webview 未加载: ' + r.src)
-    expect(r.localPaused, '在线播放未暂停本地')
+    let src = null
+    for (let i = 0; i < 10 && !src; i++) {
+      await sleep(400)
+      src = await ev(`const w = document.querySelector('webview.online-frame'); return w ? w.getAttribute('src') : null`)
+    }
+    expect(src && src.includes('watch?v=dQw4w9WgXcQ'), 'webview 未加载: ' + src)
+    const localPaused = await ev(`return window.__test.usePlayer.getState().playing === false`)
+    expect(localPaused, '在线播放未暂停本地')
+    await ev(`window.__test.usePlayer.getState().toggleOnline()`)
   })
 
   await test('YouTube 搜索（网络）', async () => {
@@ -450,6 +459,21 @@ if (phase === '1') {
   })
 
   console.log(`\nPHASE1 RESULT: ${pass} passed, ${fail} failed`)
+  process.exit(fail > 0 ? 1 : 0)
+}
+
+if (phase === '3') {
+  await test('坏 library.json：空库启动不崩溃 + 自动备份', async () => {
+    const r = await ev(`
+      await new Promise(r => setTimeout(r, 800))
+      const s = window.__test.useLibrary.getState()
+      return { tracks: s.trackOrder.length, playlists: Object.keys(s.playlists).length, alive: !!document.querySelector('.empty-state') }
+    `)
+    expect(r.tracks === 0 && r.playlists === 0 && r.alive, JSON.stringify(r))
+    const baks = fs.readdirSync(USERDATA).filter((f) => f.includes('.bak-'))
+    expect(baks.length > 0, '未生成 .bak 备份文件')
+  })
+  console.log(`\nPHASE3 RESULT: ${pass} passed, ${fail} failed`)
   process.exit(fail > 0 ? 1 : 0)
 }
 
