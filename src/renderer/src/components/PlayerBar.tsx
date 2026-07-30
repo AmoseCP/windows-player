@@ -71,7 +71,18 @@ function PlayerBar(): React.JSX.Element {
         {track?.coverFile && coversDir ? (
           <img src={localFileUrl(`${coversDir}/${track.coverFile}`)} alt="" />
         ) : (
-          '♪'
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M9 18V5.5l12-2.2V16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="6.5" cy="18" r="2.6" fill="currentColor" />
+            <circle cx="18.5" cy="16" r="2.6" fill="currentColor" />
+          </svg>
         )}
       </div>
       <div className="playerbar-meta">
