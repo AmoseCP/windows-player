@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/types'
 import { applyColorTheme } from '../themes'
 import { usePlayer } from './player'
+import { isUnderDir } from '../folderTree'
 
 function ytKey(videoId: string, listId: string | null): string {
   return `${videoId}|${listId ?? ''}`
@@ -64,6 +65,8 @@ interface LibraryState {
   /** 导入指定路径并返回对应的曲目 id（已在库中的复用现有 id），用于 m3u 歌单导入 */
   importPathsAsTrackIds: (paths: string[]) => Promise<string[]>
   importPlaylistFile: (file?: string) => Promise<void>
+  /** 该目录（含子目录）下的全部曲目 id，按音乐库顺序 */
+  tracksUnderDir: (dir: string) => string[]
   addMusicFolder: () => Promise<void>
   removeMusicFolder: (folder: string) => void
   rescanMusicFolders: (silent?: boolean) => Promise<void>
@@ -262,6 +265,14 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     } finally {
       set({ importProgress: null })
     }
+  },
+
+  tracksUnderDir: (dir) => {
+    const s = get()
+    return s.trackOrder.filter((id) => {
+      const t = s.tracks[id]
+      return t ? isUnderDir(t.path, dir) : false
+    })
   },
 
   addMusicFolder: async () => {

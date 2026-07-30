@@ -556,15 +556,19 @@ if (phase === '1') {
       const { buildFolderTree } = await import('/src/folderTree.ts')
       const tree = buildFolderTree(Object.values(lib().tracks))
       const childNames = tree[0] ? tree[0].children.map(c => c.name).sort() : []
+      const rootName = tree[0] ? tree[0].name : ''
       lib().setView('folder:${rootJs}/A')
       await new Promise(r => setTimeout(r, 350))
       const subRows = document.querySelectorAll('.track-row').length
       lib().setView('library')
-      return { count: lib().trackOrder.length, childNames, subRows }
+      return { count: lib().trackOrder.length, childNames, subRows, rootName }
     `)
     expect(first.count === 3, '扫描应入库 3 首（跳过 txt），实际 ' + first.count)
     expect(JSON.stringify(first.childNames) === '["A","B"]', '目录树子节点异常: ' + JSON.stringify(first.childNames))
     expect(first.subRows === 2, '目录筛选行数应为 2，实际 ' + first.subRows)
+    // 折叠的中间路径不应出现在显示名里（否则 Windows 上会带出盘符）
+    expect(!first.rootName.includes('/') && !first.rootName.includes(':'),
+      '目录显示名含路径分隔符: ' + first.rootName)
 
     // 磁盘上移动+改名一个文件，删除另一个，新增一个
     fs.mkdirSync(path.join(root, 'C'), { recursive: true })
@@ -610,6 +614,30 @@ if (phase === '1') {
       return { resurrected: back, restored: lib().trackOrder.length }
     `)
     expect(!third.resurrected, '手动删除的文件在重扫后复活了')
+
+    const dirRemove = await ev(`
+      const lib = () => window.__test.useLibrary.getState()
+      window.__test.useLibrary.setState({ tracks: {}, trackOrder: [], musicFolders: ['${rootJs}'], ignoredPaths: [] })
+      await lib().rescanMusicFolders(true)
+      const beforeCount = lib().trackOrder.length
+      const ids = lib().tracksUnderDir('${rootJs}/A')
+      lib().deleteTracksFromLibrary(ids)
+      await lib().rescanMusicFolders(true)
+      const after = lib().trackOrder.length
+      // 还原现场，避免影响后续阶段
+      window.__test.useLibrary.setState({
+        tracks: window.__scanBackup.tracks,
+        trackOrder: window.__scanBackup.trackOrder,
+        musicFolders: [], ignoredPaths: []
+      })
+      return { beforeCount, removed: ids.length, after, restored: lib().trackOrder.length }
+    `)
+    expect(dirRemove.removed > 0, '目录下未找到曲目')
+    expect(
+      dirRemove.after === dirRemove.beforeCount - dirRemove.removed,
+      '整目录移除后数量不符或被重扫复活: ' + JSON.stringify(dirRemove)
+    )
+    expect(dirRemove.restored === 3, '未还原音乐库，残留 ' + dirRemove.restored)
     expect(third.restored === 3, '未还原音乐库，残留 ' + third.restored)
     fs.rmSync(root, { recursive: true, force: true })
   })

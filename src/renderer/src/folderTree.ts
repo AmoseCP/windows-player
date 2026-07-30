@@ -51,15 +51,14 @@ export function buildFolderTree(tracks: Track[]): DirNode[] {
   }
 
   const toNode = (n: MutableNode): DirNode => {
-    // 压缩单链：a → b → c 合并显示为 a/b/c，路径取最深一级
+    // 压缩单链：中间那些只能一路点下去的目录直接跳过，只显示最深一级的目录名
+    // （显示完整路径会把盘符/系统目录一并带出来，既长又没用；完整路径放在 tooltip）
     let cur = n
-    const names = [n.name]
     while (cur.children.size === 1 && cur.direct === 0) {
       cur = [...cur.children.values()][0]
-      names.push(cur.name)
     }
     return {
-      name: names.filter(Boolean).join('/'),
+      name: cur.name,
       path: cur.path,
       total: cur.total,
       children: [...cur.children.values()]

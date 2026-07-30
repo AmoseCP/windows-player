@@ -80,8 +80,16 @@ function FolderHeader({
   )
 }
 
-/** 目录树节点：可展开、可点选筛选该目录（含子目录）的曲目 */
-function DirTreeNode({ node, depth }: { node: DirNode; depth: number }): React.JSX.Element {
+/** 目录树节点：可展开、可点选筛选该目录（含子目录）的曲目、可右键操作 */
+function DirTreeNode({
+  node,
+  depth,
+  onContextMenu
+}: {
+  node: DirNode
+  depth: number
+  onContextMenu: (e: React.MouseEvent, node: DirNode) => void
+}): React.JSX.Element {
   const view = useLibrary((s) => s.view)
   const expanded = useLibrary((s) => !!s.expandedDirs[node.path])
   const viewKey = FOLDER_VIEW_PREFIX + node.path
@@ -94,6 +102,7 @@ function DirTreeNode({ node, depth }: { node: DirNode; depth: number }): React.J
         style={{ paddingLeft: 14 + depth * 12 }}
         title={node.path}
         onClick={() => useLibrary.getState().setView(viewKey)}
+        onContextMenu={(e) => onContextMenu(e, node)}
       >
         <span
           className="folder-caret"
@@ -110,7 +119,12 @@ function DirTreeNode({ node, depth }: { node: DirNode; depth: number }): React.J
       </div>
       {expanded &&
         node.children.map((child) => (
-          <DirTreeNode key={child.path} node={child} depth={depth + 1} />
+          <DirTreeNode
+            key={child.path}
+            node={child}
+            depth={depth + 1}
+            onContextMenu={onContextMenu}
+          />
         ))}
     </div>
   )
@@ -184,6 +198,63 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
           ]
         : [])
     ])
+
+  // 目录右键：播放 / 加入歌单 / 定位 / 从库中移除该目录下的曲目
+  const dirMenu = (e: React.MouseEvent, node: DirNode): void => {
+    const lib = useLibrary.getState()
+    const ids = lib.tracksUnderDir(node.path)
+    const isRoot = musicFolders.includes(node.path)
+    const playlistItem = (pid: string): MenuItem => ({
+      label: lib.playlists[pid]?.name ?? '',
+      onClick: () => {
+        const n = useLibrary.getState().addTracksToPlaylist(pid, ids)
+        const name = useLibrary.getState().playlists[pid]?.name ?? ''
+        usePlayer
+          .getState()
+          .showNotice(n > 0 ? `已添加 ${n} 首到歌单「${name}」` : `已在歌单「${name}」中`)
+      }
+    })
+    openMenu(e, [
+      {
+        label: `播放此文件夹 (${ids.length} 首)`,
+        disabled: ids.length === 0,
+        onClick: () => usePlayer.getState().startQueue(ids, 0)
+      },
+      {
+        label: '全部添加到歌单',
+        disabled: ids.length === 0,
+        submenu: [
+          ...lib.folders.map((f) => ({ label: f.name, submenu: f.playlistIds.map(playlistItem) })),
+          ...lib.rootPlaylistIds.map(playlistItem)
+        ]
+      },
+      { label: '在文件管理器中打开', onClick: () => void window.api.revealInFolder(node.path) },
+      ...(isRoot
+        ? [
+            {
+              label: '取消登记为音乐文件夹',
+              onClick: () => useLibrary.getState().removeMusicFolder(node.path)
+            }
+          ]
+        : []),
+      {
+        label: `从音乐库移除 (${ids.length} 首)`,
+        danger: true,
+        disabled: ids.length === 0,
+        onClick: () =>
+          setConfirm({
+            title: '从音乐库移除文件夹',
+            message: `确定把「${node.name}」下的 ${ids.length} 首歌曲移出音乐库吗？磁盘文件不会被删除，重新扫描也不会再自动加回。`,
+            onConfirm: () => {
+              useLibrary.getState().deleteTracksFromLibrary(ids)
+              for (const id of ids) usePlayer.getState().removeFromQueue(id)
+              if (isRoot) useLibrary.getState().removeMusicFolder(node.path)
+              useLibrary.getState().setView('library')
+            }
+          })
+      }
+    ])
+  }
 
   const blankMenu = (e: React.MouseEvent): void =>
     openMenu(e, [
@@ -330,7 +401,7 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
 
       {/* 音乐库的磁盘目录树（由曲目路径派生） */}
       {dirTree.map((node) => (
-        <DirTreeNode key={node.path} node={node} depth={0} />
+        <DirTreeNode key={node.path} node={node} depth={0} onContextMenu={dirMenu} />
       ))}
 
       {folders.map((folder) => {
