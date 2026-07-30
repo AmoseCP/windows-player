@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { usePlayer, currentTrackId } from '../store/player'
 import { useLibrary } from '../store/library'
 import { resumeAnalyserContext } from '../visualizer'
+import { fadeIn, fadeOut, cancelFade, setUserVolume } from '../fade'
 import { localFileUrl } from '../utils'
 
 // 单例 audio 元素：MP4 用 audio 加载天然只出声不出画
@@ -29,6 +30,8 @@ export function useAudio(): AudioState {
   const playing = usePlayer((s) => s.playing)
   const volume = usePlayer((s) => s.volume)
   const muted = usePlayer((s) => s.muted)
+  const playbackRate = usePlayer((s) => s.playbackRate)
+  const sleepAt = usePlayer((s) => s.sleepAt)
   const metaDuration = useLibrary((s) => (trackId ? (s.tracks[trackId]?.duration ?? 0) : 0))
   const [currentTime, setCurrentTime] = useState(0)
   const [audioDuration, setAudioDuration] = useState(0)
@@ -44,6 +47,7 @@ export function useAudio(): AudioState {
       return
     }
     appliedKey = key
+    cancelFade(audio) // 切歌打断进行中的渐变
     if (!track) {
       audio.pause()
       audio.removeAttribute('src')
@@ -51,25 +55,48 @@ export function useAudio(): AudioState {
       return
     }
     audio.src = localFileUrl(track.path)
-    if (usePlayer.getState().playing) {
+    const st = usePlayer.getState()
+    if (st.playing) {
+      fadeIn(audio, st.fadeSeconds)
       audio.play().catch(() => {}) // 加载失败走 error 事件统一处理
     }
   }, [trackId, playNonce])
 
-  // 播放 / 暂停
+  // 播放 / 暂停（按设置做淡入淡出）
   useEffect(() => {
+    const fadeSeconds = usePlayer.getState().fadeSeconds
     if (playing && audio.src) {
       resumeAnalyserContext() // 可视化建立的音频图若被挂起会导致无声
+      fadeIn(audio, fadeSeconds)
       audio.play().catch(() => {})
-    } else {
-      audio.pause()
+    } else if (!audio.paused) {
+      fadeOut(audio, fadeSeconds, () => audio.pause())
     }
   }, [playing])
 
   useEffect(() => {
-    audio.volume = volume
+    setUserVolume(audio, volume)
     audio.muted = muted
   }, [volume, muted])
+
+  useEffect(() => {
+    audio.playbackRate = playbackRate
+  }, [playbackRate])
+
+  // 睡眠定时器：到点淡出停止
+  useEffect(() => {
+    if (sleepAt === null) return
+    const delay = sleepAt - Date.now()
+    if (delay <= 0) {
+      usePlayer.getState().stopPlayback()
+      return
+    }
+    const t = setTimeout(() => {
+      usePlayer.getState().stopPlayback()
+      usePlayer.getState().showNotice('睡眠定时器已到，播放停止')
+    }, delay)
+    return () => clearTimeout(t)
+  }, [sleepAt])
 
   // 进度、自然结束、播放错误
   useEffect(() => {

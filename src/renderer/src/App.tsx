@@ -15,6 +15,7 @@ import PlayerBar from './components/PlayerBar'
 import MiniPlayer from './components/MiniPlayer'
 import LyricsPanel from './components/LyricsPanel'
 import OnlinePlayer from './components/OnlinePlayer'
+import QueuePanel from './components/QueuePanel'
 import { useLibrary } from './store/library'
 import { usePlayer } from './store/player'
 import { initPersistence } from './store/persistence'
@@ -46,6 +47,7 @@ function App(): React.JSX.Element {
   const miniMode = usePlayer((s) => s.miniMode)
   const showLyrics = usePlayer((s) => s.showLyrics)
   const showOnline = usePlayer((s) => s.showOnline)
+  const showQueue = usePlayer((s) => s.showQueue)
   const themeImage = useLibrary((s) => s.themeImage)
   const themeVersion = useLibrary((s) => s.themeVersion)
 
@@ -71,9 +73,28 @@ function App(): React.JSX.Element {
       void window.api.gcCovers(used)
     })
     // 窗口关闭（隐藏到托盘）时立即停止本地与在线播放
-    return window.api.onPlayerStop(() => {
+    const offStop = window.api.onPlayerStop(() => {
       usePlayer.setState({ playing: false, showOnline: false })
     })
+    // 文件关联：双击音频/歌单文件打开本应用 → 导入并立即播放
+    const offOpen = window.api.onOpenFiles(async (files) => {
+      const lib = useLibrary.getState()
+      const playlists = files.filter((f) => /\.m3u8?$/i.test(f))
+      const audios = files.filter((f) => !/\.m3u8?$/i.test(f))
+      if (audios.length > 0) {
+        const ids = await lib.importPathsAsTrackIds(audios)
+        if (ids.length > 0) {
+          useLibrary.getState().setView('library')
+          usePlayer.getState().startQueue(ids, 0)
+        }
+      }
+      // m3u 文件按歌单导入（逐个建立歌单）
+      for (const f of playlists) await useLibrary.getState().importPlaylistFile(f)
+    })
+    return () => {
+      offStop()
+      offOpen()
+    }
   }, [])
 
   // 文件/文件夹拖入窗口导入
@@ -92,11 +113,14 @@ function App(): React.JSX.Element {
     const data = e.active.data.current as DragData | undefined
     if (!data) return
     const s = useLibrary.getState()
-    setDragLabel(
-      data.type === 'track'
-        ? (s.tracks[data.trackId]?.title ?? '')
-        : (s.playlists[data.playlistId]?.name ?? '')
-    )
+    if (data.type === 'playlist') {
+      setDragLabel(s.playlists[data.playlistId]?.name ?? '')
+      return
+    }
+    const sel = s.selectedTrackIds
+    const count = sel.has(data.trackId) && sel.size > 1 ? sel.size : 1
+    const title = s.tracks[data.trackId]?.title ?? ''
+    setDragLabel(count > 1 ? `${count} 首歌曲` : title)
   }
 
   const onDragEnd = (e: DragEndEvent): void => {
@@ -106,19 +130,29 @@ function App(): React.JSX.Element {
     const lib = useLibrary.getState()
 
     if (data.type === 'track') {
+      // 拖动起点在选区内 → 整个选区一起操作
+      const sel = lib.selectedTrackIds
+      const ids = sel.has(data.trackId) && sel.size > 1 ? [...sel] : [data.trackId]
       const overId = String(e.over.id)
       if (overId.startsWith('drop-playlist:')) {
         // 歌曲拖到侧栏歌单 = 添加（重复自动跳过）
         const pid = overId.slice('drop-playlist:'.length)
-        const added = lib.addTrackToPlaylist(pid, data.trackId)
+        const n = lib.addTracksToPlaylist(pid, ids)
         const name = lib.playlists[pid]?.name ?? ''
-        usePlayer.getState().showNotice(added ? `已添加到歌单「${name}」` : `已在歌单「${name}」中`)
+        usePlayer
+          .getState()
+          .showNotice(
+            n > 0
+              ? `已添加${ids.length > 1 ? ` ${n} 首` : ''}到歌单「${name}」`
+              : `已在歌单「${name}」中`
+          )
         return
       }
       const overData = e.over.data.current as DragData | undefined
       // 歌单内重排；搜索过滤时顺序不完整，禁用
       if (overData?.type === 'track' && lib.view !== 'library' && lib.search.trim() === '') {
-        lib.reorderPlaylist(lib.view, data.trackId, overData.trackId)
+        if (ids.length > 1) lib.moveTracksInPlaylist(lib.view, ids, overData.trackId)
+        else lib.reorderPlaylist(lib.view, data.trackId, overData.trackId)
       }
       return
     }
@@ -196,6 +230,7 @@ function App(): React.JSX.Element {
             {showLyrics && <LyricsPanel />}
             {showOnline && <OnlinePlayer />}
           </main>
+          {showQueue && <QueuePanel />}
         </div>
         <DragOverlay dropAnimation={null}>
           {dragLabel !== null && <div className="drag-chip">{dragLabel}</div>}

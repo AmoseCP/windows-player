@@ -7,6 +7,7 @@ import { localFileUrl, formatDuration } from '../utils'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
+import EditTrackDialog from './EditTrackDialog'
 import NoteIcon from './NoteIcon'
 import type { Track } from '../../../shared/types'
 
@@ -37,9 +38,11 @@ interface RowProps {
   track: Track
   index: number
   playing: boolean
+  selected: boolean
   coversDir: string
   onPlay: (index: number) => void
   onMenu: (e: React.MouseEvent, track: Track) => void
+  onSelect: (e: React.MouseEvent, index: number) => void
 }
 
 function RowContent({
@@ -80,13 +83,18 @@ const PlainRow = memo(function PlainRow({
   track,
   index,
   playing,
+  selected,
   coversDir,
   onPlay,
-  onMenu
+  onMenu,
+  onSelect
 }: RowProps): React.JSX.Element {
   return (
     <div
-      className={`track-row${track.missing ? ' missing' : ''}${playing ? ' playing' : ''}`}
+      className={`track-row${track.missing ? ' missing' : ''}${playing ? ' playing' : ''}${
+        selected ? ' selected' : ''
+      }`}
+      onMouseDown={(e) => onSelect(e, index)}
       onDoubleClick={() => onPlay(index)}
       onContextMenu={(e) => onMenu(e, track)}
     >
@@ -100,9 +108,11 @@ const SortableRow = memo(function SortableRow({
   track,
   index,
   playing,
+  selected,
   coversDir,
   onPlay,
-  onMenu
+  onMenu,
+  onSelect
 }: RowProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: track.id,
@@ -116,8 +126,9 @@ const SortableRow = memo(function SortableRow({
       {...listeners}
       className={`track-row${track.missing ? ' missing' : ''}${playing ? ' playing' : ''}${
         isDragging ? ' dragging' : ''
-      }`}
+      }${selected ? ' selected' : ''}`}
       style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined }}
+      onMouseDown={(e) => onSelect(e, index)}
       onDoubleClick={() => onPlay(index)}
       onContextMenu={(e) => onMenu(e, track)}
     >
@@ -138,6 +149,11 @@ function TrackList(): React.JSX.Element {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [confirm, setConfirm] = useState<{ message: string; onConfirm: () => void } | null>(null)
+  const [editing, setEditing] = useState<Track | null>(null)
+  // 多选：选中的曲目 id 与 Shift 范围选的锚点
+  const selected = useLibrary((s) => s.selectedTrackIds)
+  const setSelected = useLibrary.getState().setSelectedTrackIds
+  const anchorRef = useRef<number | null>(null) // Shift 范围选锚点；用 ref 避免连点时读到旧值
   const isLibrary = view === 'library'
   const searching = search.trim() !== ''
   const sortable = !isLibrary && !searching
@@ -180,10 +196,26 @@ function TrackList(): React.JSX.Element {
     }
   }, [])
 
-  // 切换视图/搜索后回到顶部，避免停留在超出新列表长度的位置
+  // 切换视图/搜索后回到顶部（选区由 store 在 setView/setSearch 时清空）
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
   }, [view, search])
+
+  // Ctrl/Cmd+A 全选当前列表，Esc 取消选择
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setSelected(new Set(sortedIds))
+      } else if (e.key === 'Escape') {
+        setSelected(new Set())
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sortedIds])
 
   const start = virtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0
   const end = virtual
@@ -205,51 +237,98 @@ function TrackList(): React.JSX.Element {
     [sortedIds]
   )
 
-  const onMenu = useCallback((e: React.MouseEvent, track: Track) => {
-    e.preventDefault()
-    const lib = useLibrary.getState()
-    const playlistItem = (pid: string): MenuItem => ({
-      label: lib.playlists[pid]?.name ?? '',
-      onClick: () => {
-        const added = useLibrary.getState().addTrackToPlaylist(pid, track.id)
-        const name = useLibrary.getState().playlists[pid]?.name ?? ''
-        usePlayer.getState().showNotice(added ? `已添加到歌单「${name}」` : `已在歌单「${name}」中`)
+  // Ctrl/Cmd 点选、Shift 范围选；不带修饰键点击时只选中该行
+  const onSelect = useCallback(
+    (e: React.MouseEvent, index: number) => {
+      if (e.button !== 0) return
+      const id = sortedIds[index]
+      if (!id) return
+      const anchor = anchorRef.current
+      if (e.shiftKey && anchor !== null) {
+        const [a, b] = anchor <= index ? [anchor, index] : [index, anchor]
+        setSelected(new Set(sortedIds.slice(a, b + 1)))
+        return
       }
-    })
-    // 级联子菜单：文件夹 → 歌单 分组，根级歌单直接列出
-    const addSubmenu: MenuItem[] = [
-      ...lib.folders.map((f) => ({ label: f.name, submenu: f.playlistIds.map(playlistItem) })),
-      ...lib.rootPlaylistIds.map(playlistItem)
-    ]
-    const items: MenuItem[] = [
-      { label: '添加到歌单', submenu: addSubmenu },
-      ...(lib.view !== 'library'
-        ? [
-            {
-              label: '从歌单中移除',
-              onClick: () => useLibrary.getState().removeTrackFromPlaylist(lib.view, track.id)
-            }
-          ]
-        : []),
-      {
-        label: '在文件夹中显示',
-        onClick: () => window.api.revealInFolder(track.path)
-      },
-      {
-        label: '从音乐库删除',
-        danger: true,
-        onClick: () =>
-          setConfirm({
-            message: `确定从音乐库删除「${track.title}」吗？该歌曲将同时从所有歌单移除，磁盘文件不会被删除。`,
-            onConfirm: () => {
-              useLibrary.getState().deleteTrackFromLibrary(track.id)
-              usePlayer.getState().removeFromQueue(track.id)
-            }
-          })
+      if (e.ctrlKey || e.metaKey) {
+        setSelected((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+        anchorRef.current = index
+        return
       }
-    ]
-    setMenu({ x: e.clientX, y: e.clientY, items })
-  }, [])
+      // 点在已选区域内则保留选区（便于整体拖动），否则重置为单选
+      setSelected((prev) => (prev.has(id) && prev.size > 1 ? prev : new Set([id])))
+      anchorRef.current = index
+    },
+    [sortedIds]
+  )
+
+  const onMenu = useCallback(
+    (e: React.MouseEvent, track: Track) => {
+      e.preventDefault()
+      const lib = useLibrary.getState()
+      // 右键落在选区内 → 操作整个选区；否则只操作该行
+      const targets = selected.has(track.id) && selected.size > 1 ? [...selected] : [track.id]
+      const many = targets.length > 1
+      const suffix = many ? ` (${targets.length} 首)` : ''
+
+      const playlistItem = (pid: string): MenuItem => ({
+        label: lib.playlists[pid]?.name ?? '',
+        onClick: () => {
+          const n = useLibrary.getState().addTracksToPlaylist(pid, targets)
+          const name = useLibrary.getState().playlists[pid]?.name ?? ''
+          usePlayer
+            .getState()
+            .showNotice(n > 0 ? `已添加 ${n} 首到歌单「${name}」` : `已在歌单「${name}」中`)
+        }
+      })
+      // 级联子菜单：文件夹 → 歌单 分组，根级歌单直接列出
+      const addSubmenu: MenuItem[] = [
+        ...lib.folders.map((f) => ({ label: f.name, submenu: f.playlistIds.map(playlistItem) })),
+        ...lib.rootPlaylistIds.map(playlistItem)
+      ]
+      const items: MenuItem[] = [
+        { label: `添加到歌单${suffix}`, submenu: addSubmenu },
+        ...(lib.view !== 'library'
+          ? [
+              {
+                label: `从歌单中移除${suffix}`,
+                onClick: () => {
+                  useLibrary.getState().removeTracksFromPlaylist(lib.view, targets)
+                  setSelected(new Set())
+                }
+              }
+            ]
+          : []),
+        ...(many
+          ? []
+          : [
+              { label: '编辑歌曲信息…', onClick: () => setEditing(track) },
+              { label: '在文件夹中显示', onClick: () => window.api.revealInFolder(track.path) }
+            ]),
+        {
+          label: `从音乐库删除${suffix}`,
+          danger: true,
+          onClick: () =>
+            setConfirm({
+              message: many
+                ? `确定从音乐库删除选中的 ${targets.length} 首歌曲吗？它们将同时从所有歌单移除，磁盘文件不会被删除。`
+                : `确定从音乐库删除「${track.title}」吗？该歌曲将同时从所有歌单移除，磁盘文件不会被删除。`,
+              onConfirm: () => {
+                useLibrary.getState().deleteTracksFromLibrary(targets)
+                for (const id of targets) usePlayer.getState().removeFromQueue(id)
+                setSelected(new Set())
+              }
+            })
+        }
+      ]
+      setMenu({ x: e.clientX, y: e.clientY, items })
+    },
+    [selected]
+  )
 
   const rows = visible.map((track, i) => {
     const index = start + i
@@ -257,9 +336,11 @@ function TrackList(): React.JSX.Element {
       track,
       index,
       playing: track.id === playingTrackId,
+      selected: selected.has(track.id),
       coversDir,
       onPlay,
-      onMenu
+      onMenu,
+      onSelect
     }
     return sortable ? (
       <SortableRow key={track.id} {...props} />
@@ -335,6 +416,7 @@ function TrackList(): React.JSX.Element {
           onCancel={() => setConfirm(null)}
         />
       )}
+      {editing && <EditTrackDialog track={editing} onClose={() => setEditing(null)} />}
     </div>
   )
 }

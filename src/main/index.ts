@@ -20,6 +20,12 @@ import { registerLocalFileSchemes, registerLocalFileProtocol } from './localfile
 // localfile:// 协议供渲染进程流式播放本地音频文件（需在 app ready 前注册特权）
 registerLocalFileSchemes()
 
+// 单实例：再次双击文件时唤起已运行的窗口而不是开新进程
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+}
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let loginWindow: BrowserWindow | null = null
@@ -83,6 +89,28 @@ function showMainWindow(): void {
   mainWindow.focus()
 }
 
+// 通过文件关联/命令行传入、等待渲染进程就绪后处理的文件
+let pendingOpenFiles: string[] = []
+
+function isOpenableFile(p: string): boolean {
+  return /\.(mp3|flac|wav|ogg|aac|m4a|mp4|wma|m3u8?)$/i.test(p)
+}
+
+/** 收集命令行里的文件参数（Windows/Linux 双击文件时通过 argv 传入） */
+function filesFromArgv(argv: string[]): string[] {
+  return argv.slice(1).filter((a) => !a.startsWith('-') && isOpenableFile(a))
+}
+
+function deliverOpenFiles(files: string[]): void {
+  if (files.length === 0) return
+  if (mainWindow && !mainWindow.webContents.isLoading()) {
+    showMainWindow()
+    mainWindow.webContents.send('app:openFiles', files)
+  } else {
+    pendingOpenFiles.push(...files)
+  }
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -106,6 +134,14 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // 渲染进程加载完成后再投递待处理的文件
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (pendingOpenFiles.length > 0) {
+      mainWindow?.webContents.send('app:openFiles', pendingOpenFiles)
+      pendingOpenFiles = []
+    }
   })
 
   // 关闭按钮 = 停止播放并隐藏到托盘；只有托盘「退出」才真正退出
@@ -223,9 +259,24 @@ function setMiniMode(mini: boolean): void {
   }
 }
 
+// 第二个实例启动（双击文件）→ 唤起当前窗口并转交文件
+app.on('second-instance', (_e, argv) => {
+  showMainWindow()
+  deliverOpenFiles(filesFromArgv(argv))
+})
+
+// macOS 通过 open-file 事件传递（可能早于 ready）
+app.on('open-file', (e, filePath) => {
+  e.preventDefault()
+  deliverOpenFiles([filePath])
+})
+
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.bethelchurch.audioplayer')
+
+  // 首次启动时命令行里带的文件（Windows/Linux 文件关联）
+  pendingOpenFiles.push(...filesFromArgv(process.argv))
 
   // macOS 开发模式下 Dock 显示的是 Electron 默认图标，主动换成应用 logo
   if (process.platform === 'darwin') {

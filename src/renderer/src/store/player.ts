@@ -27,6 +27,11 @@ interface PlayerState {
   showOnline: boolean // 在线播放（YouTube）面板
   onlineTabs: OnlineTab[] // 在线播放的多标签页
   activeTabId: string | null
+  showQueue: boolean // 播放队列面板
+  playbackRate: number // 播放速度倍率
+  fadeSeconds: number // 淡入淡出时长（秒），0 = 关闭
+  sleepAt: number | null // 睡眠定时器到点的时间戳；null = 未设置
+  sleepAfterTrack: boolean // 「播完当前曲目后停止」
 
   startQueue: (queue: string[], index: number) => void
   togglePlay: () => void
@@ -45,6 +50,14 @@ interface PlayerState {
   closeOnlineTab: (id: string) => void
   setActiveOnlineTab: (id: string) => void
   updateOnlineTab: (id: string, patch: Partial<Pick<OnlineTab, 'currentUrl' | 'title'>>) => void
+  toggleQueue: () => void
+  playQueueIndex: (index: number) => void
+  clearQueue: () => void
+  setPlaybackRate: (rate: number) => void
+  setFadeSeconds: (seconds: number) => void
+  setSleepTimer: (minutes: number | null) => void
+  setSleepAfterTrack: (on: boolean) => void
+  stopPlayback: () => void
 }
 
 export function currentTrackId(s: Pick<PlayerState, 'queue' | 'queueIndex'>): string | null {
@@ -68,6 +81,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   showOnline: false,
   onlineTabs: [],
   activeTabId: null,
+  showQueue: false,
+  playbackRate: 1,
+  fadeSeconds: 0,
+  sleepAt: null,
+  sleepAfterTrack: false,
 
   startQueue: (queue, index) =>
     set((s) => ({
@@ -88,6 +106,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const s = get()
     const len = s.queue.length
     if (s.queueIndex < 0 || len === 0) return
+    // 睡眠定时器设为「播完当前曲目后停止」
+    if (auto && s.sleepAfterTrack) {
+      set({ playing: false, sleepAfterTrack: false })
+      return
+    }
     if (s.playMode === 'shuffle') {
       let idx = s.queueIndex
       if (len > 1) {
@@ -179,6 +202,34 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set((s) => ({
       onlineTabs: s.onlineTabs.map((t) => (t.id === id ? { ...t, ...patch } : t))
     })),
+
+  toggleQueue: () => set((s) => ({ showQueue: !s.showQueue })),
+
+  /** 队列面板里点选某首：不改变队列内容，只跳转 */
+  playQueueIndex: (index) => {
+    const s = get()
+    if (index < 0 || index >= s.queue.length) return
+    set({ queueIndex: index, playing: true, history: [], playNonce: s.playNonce + 1 })
+  },
+
+  clearQueue: () => set({ queue: [], queueIndex: -1, playing: false, history: [] }),
+
+  setPlaybackRate: (rate) => set({ playbackRate: Math.min(2, Math.max(0.5, rate)) }),
+
+  setFadeSeconds: (seconds) => set({ fadeSeconds: Math.min(10, Math.max(0, seconds)) }),
+
+  /** minutes 为 null 时取消定时器 */
+  setSleepTimer: (minutes) =>
+    set(
+      minutes === null
+        ? { sleepAt: null, sleepAfterTrack: false }
+        : { sleepAt: Date.now() + minutes * 60_000, sleepAfterTrack: false }
+    ),
+
+  setSleepAfterTrack: (on) => set({ sleepAfterTrack: on, sleepAt: null }),
+
+  /** 睡眠定时器到点：停止播放并清除定时状态 */
+  stopPlayback: () => set({ playing: false, sleepAt: null, sleepAfterTrack: false }),
 
   // 歌曲被从音乐库删除时同步清理播放队列
   removeFromQueue: (trackId) => {

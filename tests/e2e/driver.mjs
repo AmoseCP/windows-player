@@ -468,8 +468,79 @@ if (phase === '1') {
     expect(r.n > 0 && r.hasTitle, '搜索无结果 ' + JSON.stringify(r))
   })
 
+  await test('新功能：队列/速度/淡入淡出/定时器/多选/编辑', async () => {
+    const r = await ev(`
+      const lib = () => window.__test.useLibrary.getState()
+      const p = () => window.__test.usePlayer.getState()
+      lib().setView('library')
+      await new Promise(r => setTimeout(r, 200))
+      // 队列面板
+      p().startQueue(lib().trackOrder, 0)
+      p().toggleQueue()
+      await new Promise(r => setTimeout(r, 400))
+      const queueItems = document.querySelectorAll('.queue-item').length
+      const queueMarked = !!document.querySelector('.queue-item.playing')
+      p().toggleQueue()
+      // 播放速度（含越界钳制）
+      p().setPlaybackRate(1.5)
+      await new Promise(r => setTimeout(r, 200))
+      const rateApplied = window.__test.audio.playbackRate
+      p().setPlaybackRate(9)
+      const rateClamped = p().playbackRate
+      p().setPlaybackRate(1)
+      // 淡入淡出设置
+      p().setFadeSeconds(2)
+      const fade = p().fadeSeconds
+      p().setFadeSeconds(0)
+      // 睡眠定时器
+      p().setSleepTimer(30)
+      const sleepSet = p().sleepAt !== null
+      p().setSleepAfterTrack(true)
+      const afterTrack = p().sleepAfterTrack
+      p().setSleepTimer(null)
+      const sleepCleared = p().sleepAt === null && !p().sleepAfterTrack
+      // 多选：Shift 范围选 + Ctrl 加选
+      const rows = document.querySelectorAll('.track-row')
+      rows[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+      await new Promise(r => setTimeout(r, 120))
+      rows[2].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, shiftKey: true }))
+      await new Promise(r => setTimeout(r, 200))
+      const range = lib().selectedTrackIds.size
+      const highlighted = document.querySelectorAll('.track-row.selected').length
+      // 批量加入歌单
+      const pid = lib().createPlaylist(null)
+      const batchAdded = lib().addTracksToPlaylist(pid, [...lib().selectedTrackIds])
+      lib().deletePlaylist(pid)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await new Promise(r => setTimeout(r, 150))
+      const escCleared = lib().selectedTrackIds.size === 0
+      // 编辑歌曲信息（空白应被忽略）
+      const tid = lib().trackOrder[0]
+      const originalTitle = lib().tracks[tid].title
+      lib().updateTrack(tid, { title: '编辑后标题' })
+      const edited = lib().tracks[tid].title === '编辑后标题'
+      lib().updateTrack(tid, { title: '   ' })
+      const blankIgnored = lib().tracks[tid].title === '编辑后标题'
+      lib().updateTrack(tid, { title: originalTitle })
+      return { queueItems, queueMarked, rateApplied, rateClamped, fade, sleepSet, afterTrack,
+               sleepCleared, range, highlighted, batchAdded, escCleared, edited, blankIgnored }
+    `)
+    expect(r.queueItems === 3 && r.queueMarked, '队列面板异常: ' + JSON.stringify(r))
+    expect(r.rateApplied === 1.5 && r.rateClamped === 2, '播放速度异常: ' + JSON.stringify(r))
+    expect(r.fade === 2, '淡入淡出设置未生效')
+    expect(r.sleepSet && r.afterTrack && r.sleepCleared, '睡眠定时器异常: ' + JSON.stringify(r))
+    expect(r.range === 3 && r.highlighted === 3, 'Shift 范围选异常: ' + r.range)
+    expect(r.batchAdded === 3, '批量加入歌单异常: ' + r.batchAdded)
+    expect(r.escCleared, 'Esc 未清空选区')
+    expect(r.edited && r.blankIgnored, '歌曲信息编辑异常: ' + JSON.stringify(r))
+  })
+
   await test('大库性能：虚拟滚动生效', async () => {
     const r = await ev(`
+      const before = {
+        tracks: window.__test.useLibrary.getState().tracks,
+        trackOrder: window.__test.useLibrary.getState().trackOrder
+      }
       const N = 3000
       const tracks = {}, order = []
       for (let i = 0; i < N; i++) {
@@ -485,12 +556,16 @@ if (phase === '1') {
       const t1 = performance.now()
       for (let i = 0; i < 20; i++) window.__test.useLibrary.getState().setSidebarWidth(200 + i)
       const mutateMs = (performance.now() - t1) / 20
-      return { renderMs, rows, mutateMs }
+      // 还原现场：假曲目不能残留到后续阶段（会被持久化并影响重启恢复断言）
+      window.__test.useLibrary.setState({ tracks: before.tracks, trackOrder: before.trackOrder })
+      await new Promise(r => requestAnimationFrame(r))
+      return { renderMs, rows, mutateMs, restored: window.__test.useLibrary.getState().trackOrder.length }
     `)
     // 虚拟滚动下只挂载视口内的行，且无关状态变更不应触发整库序列化
     expect(r.rows < 100, '未启用虚拟滚动，渲染行数 ' + r.rows)
     expect(r.renderMs < 400, '3000 首渲染耗时过长: ' + Math.round(r.renderMs) + 'ms')
     expect(r.mutateMs < 3, '无关状态变更开销过大: ' + r.mutateMs.toFixed(1) + 'ms/次')
+    expect(r.restored === 3, '性能测试未还原音乐库，残留 ' + r.restored + ' 首')
   })
 
   await test('持久化落盘（防抖+内容正确）', async () => {
@@ -498,7 +573,7 @@ if (phase === '1') {
     await sleep(1000)
     const data = JSON.parse(fs.readFileSync(path.join(USERDATA, 'library.json'), 'utf-8'))
     expect(Math.abs(data.settings.volume - 0.44) < 0.001, 'volume=' + data.settings.volume)
-    expect(data.trackOrder.length > 0, 'trackOrder=' + data.trackOrder.length)
+    expect(data.trackOrder.length === 3, 'trackOrder=' + data.trackOrder.length)
     expect(data.folders.some((f) => f.name === '测试文件夹'), '文件夹未持久化')
     expect((data.youtubeHistory ?? []).some((h) => h.videoId === 'dQw4w9WgXcQ'), '在线历史未持久化')
   })

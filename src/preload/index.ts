@@ -43,9 +43,22 @@ const api = {
     ipcRenderer.on('mini:hover', listener)
     return () => ipcRenderer.removeListener('mini:hover', listener)
   },
+  exportPlaylist: (
+    name: string,
+    entries: { path: string; title: string; duration: number }[]
+  ): Promise<boolean> => ipcRenderer.invoke('playlist:export', name, entries),
+  importPlaylist: (): Promise<{ name: string; paths: string[] } | null> =>
+    ipcRenderer.invoke('playlist:import'),
+  readPlaylist: (file: string): Promise<{ name: string; paths: string[] } | null> =>
+    ipcRenderer.invoke('playlist:read', file),
   pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
   getLyrics: (path: string): Promise<{ content: string } | null> =>
     ipcRenderer.invoke('lyrics:get', path),
+  onOpenFiles: (cb: (files: string[]) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, files: string[]): void => cb(files)
+    ipcRenderer.on('app:openFiles', listener)
+    return () => ipcRenderer.removeListener('app:openFiles', listener)
+  },
   onMediaKey: (cb: (action: string) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, action: string): void => cb(action)
     ipcRenderer.on('media:key', listener)

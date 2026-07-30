@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useLibrary } from '../store/library'
+import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
@@ -125,6 +126,10 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
       {
         label: '新建歌单文件夹',
         onClick: () => setRenaming({ id: createFolder(), kind: 'folder' })
+      },
+      {
+        label: '导入歌单文件…',
+        onClick: () => void useLibrary.getState().importPlaylistFile()
       }
     ])
 
@@ -153,6 +158,29 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
     const playlist = playlists[playlistId]
     openMenu(e, [
       { label: '重命名', onClick: () => setRenaming({ id: playlistId, kind: 'playlist' }) },
+      {
+        label: '导出为 m3u8 文件…',
+        onClick: async () => {
+          const lib = useLibrary.getState()
+          const p = lib.playlists[playlistId]
+          if (!p) return
+          const entries = p.trackIds
+            .map((id) => lib.tracks[id])
+            .filter(Boolean)
+            .map((t) => ({ path: t.path, title: t.title, duration: t.duration }))
+          if (entries.length === 0) {
+            usePlayer.getState().showNotice('歌单为空，无需导出')
+            return
+          }
+          try {
+            if (await window.api.exportPlaylist(p.name, entries)) {
+              usePlayer.getState().showNotice(`已导出歌单「${p.name}」`)
+            }
+          } catch {
+            usePlayer.getState().showNotice('导出失败')
+          }
+        }
+      },
       {
         label: '删除歌单',
         danger: true,

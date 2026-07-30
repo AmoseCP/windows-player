@@ -32,6 +32,9 @@ interface LibraryState {
   themeVersion: number // 同名文件被替换时用于刷新缓存
   colorTheme: string
   youtubeHistory: YouTubeHistoryItem[] // 在线播放记录，新的在前
+  // 列表多选（不持久化）：放在 store 里供拖拽逻辑读取
+  selectedTrackIds: Set<string>
+  setSelectedTrackIds: (next: Set<string> | ((prev: Set<string>) => Set<string>)) => void
 
   init: () => Promise<void>
   setSidebarWidth: (w: number) => void
@@ -43,6 +46,9 @@ interface LibraryState {
   setYouTubeTitle: (videoId: string, listId: string | null, title: string) => void
   removeYouTubeHistory: (videoId: string, listId: string | null) => void
   importPaths: (paths: string[]) => Promise<void>
+  /** 导入指定路径并返回对应的曲目 id（已在库中的复用现有 id），用于 m3u 歌单导入 */
+  importPathsAsTrackIds: (paths: string[]) => Promise<string[]>
+  importPlaylistFile: (file?: string) => Promise<void>
   markMissing: (id: string) => void
 
   setView: (view: View) => void
@@ -55,9 +61,15 @@ interface LibraryState {
   deleteFolder: (id: string) => void
 
   addTrackToPlaylist: (playlistId: string, trackId: string) => boolean
+  addTracksToPlaylist: (playlistId: string, trackIds: string[]) => number
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void
+  removeTracksFromPlaylist: (playlistId: string, trackIds: string[]) => void
   deleteTrackFromLibrary: (trackId: string) => void
+  deleteTracksFromLibrary: (trackIds: string[]) => void
+  updateTrack: (trackId: string, patch: Partial<Pick<Track, 'title' | 'artist' | 'album'>>) => void
   reorderPlaylist: (playlistId: string, fromTrackId: string, toTrackId: string) => void
+  /** 多选整体拖动：把选中的曲目整体移动到目标曲目位置 */
+  moveTracksInPlaylist: (playlistId: string, movingIds: string[], toTrackId: string) => void
   movePlaylist: (playlistId: string, folderId: string | null) => void
 }
 
@@ -86,6 +98,12 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   themeVersion: 0,
   colorTheme: 'dark',
   youtubeHistory: [],
+  selectedTrackIds: new Set<string>(),
+
+  setSelectedTrackIds: (next) =>
+    set((s) => ({
+      selectedTrackIds: typeof next === 'function' ? next(s.selectedTrackIds) : next
+    })),
 
   init: async () => {
     set({ coversDir: await window.api.getCoversDir() })
@@ -95,7 +113,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
-  setSearch: (search) => set({ search }),
+  setSearch: (search) => set({ search, selectedTrackIds: new Set<string>() }),
 
   setThemeImage: (themeImage) => set((s) => ({ themeImage, themeVersion: s.themeVersion + 1 })),
 
@@ -154,6 +172,53 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     }
   },
 
+  importPathsAsTrackIds: async (paths) => {
+    if (paths.length === 0) return []
+    const byPath = new Map(Object.values(get().tracks).map((t) => [t.path, t.id]))
+    const missing = paths.filter((p) => !byPath.has(p))
+    if (missing.length > 0) {
+      set({ importProgress: { done: 0, total: 0 } })
+      const offProgress = window.api.onImportProgress((p) => set({ importProgress: p }))
+      try {
+        const added = await window.api.importPaths(missing, [...byPath.keys()])
+        set((s) => {
+          const tracks = { ...s.tracks }
+          const trackOrder = [...s.trackOrder]
+          for (const t of added) {
+            tracks[t.id] = t
+            trackOrder.push(t.id)
+            byPath.set(t.path, t.id)
+          }
+          return { tracks, trackOrder }
+        })
+      } finally {
+        offProgress()
+        set({ importProgress: null })
+      }
+    }
+    // 保持 m3u 文件内的原始顺序
+    return paths.map((p) => byPath.get(p)).filter((id): id is string => !!id)
+  },
+
+  /** 导入 m3u/m3u8 → 导入其中曲目 → 新建同名歌单；不传路径时弹出选择框 */
+  importPlaylistFile: async (file) => {
+    const result = file ? await window.api.readPlaylist(file) : await window.api.importPlaylist()
+    if (!result) return
+    const trackIds = await get().importPathsAsTrackIds(result.paths)
+    const id = crypto.randomUUID()
+    set((s) => {
+      const name = uniqueName(
+        result.name || '导入的歌单',
+        Object.values(s.playlists).map((p) => p.name)
+      )
+      return {
+        playlists: { ...s.playlists, [id]: { id, name, trackIds } },
+        rootPlaylistIds: [...s.rootPlaylistIds, id],
+        view: id
+      }
+    })
+  },
+
   markMissing: (id) =>
     set((s) => {
       const track = s.tracks[id]
@@ -161,7 +226,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       return { tracks: { ...s.tracks, [id]: { ...track, missing: true } } }
     }),
 
-  setView: (view) => set({ view }),
+  // 切换视图/搜索时清空列表选区（选区随视图无意义）
+  setView: (view) => set({ view, selectedTrackIds: new Set<string>() }),
 
   toggleFolder: (id) =>
     set((s) => ({ expandedFolders: { ...s.expandedFolders, [id]: !s.expandedFolders[id] } })),
@@ -262,6 +328,66 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     return true
   },
 
+  /** 批量加入歌单，返回实际新增数量 */
+  addTracksToPlaylist: (playlistId, trackIds) => {
+    const p = get().playlists[playlistId]
+    if (!p) return 0
+    const existing = new Set(p.trackIds)
+    const fresh = trackIds.filter((id) => !existing.has(id))
+    if (fresh.length === 0) return 0
+    set((s) => ({
+      playlists: {
+        ...s.playlists,
+        [playlistId]: {
+          ...s.playlists[playlistId],
+          trackIds: [...s.playlists[playlistId].trackIds, ...fresh]
+        }
+      }
+    }))
+    return fresh.length
+  },
+
+  removeTracksFromPlaylist: (playlistId, trackIds) =>
+    set((s) => {
+      const p = s.playlists[playlistId]
+      if (!p) return s
+      const drop = new Set(trackIds)
+      return {
+        playlists: {
+          ...s.playlists,
+          [playlistId]: { ...p, trackIds: p.trackIds.filter((id) => !drop.has(id)) }
+        }
+      }
+    }),
+
+  deleteTracksFromLibrary: (trackIds) =>
+    set((s) => {
+      const drop = new Set(trackIds)
+      const tracks = { ...s.tracks }
+      for (const id of drop) delete tracks[id]
+      const playlists = { ...s.playlists }
+      for (const pid of Object.keys(playlists)) {
+        if (playlists[pid].trackIds.some((id) => drop.has(id))) {
+          playlists[pid] = {
+            ...playlists[pid],
+            trackIds: playlists[pid].trackIds.filter((id) => !drop.has(id))
+          }
+        }
+      }
+      return { tracks, trackOrder: s.trackOrder.filter((id) => !drop.has(id)), playlists }
+    }),
+
+  /** 编辑曲目信息：只改播放器内的记录，不写回磁盘文件标签 */
+  updateTrack: (trackId, patch) =>
+    set((s) => {
+      const t = s.tracks[trackId]
+      if (!t) return s
+      const clean = Object.fromEntries(
+        Object.entries(patch).filter(([, v]) => typeof v === 'string' && v.trim() !== '')
+      )
+      return { tracks: { ...s.tracks, [trackId]: { ...t, ...clean } } }
+    }),
+
   removeTrackFromPlaylist: (playlistId, trackId) =>
     set((s) => {
       const p = s.playlists[playlistId]
@@ -306,6 +432,24 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       const trackIds = [...p.trackIds]
       const [moved] = trackIds.splice(from, 1)
       trackIds.splice(to, 0, moved)
+      return { playlists: { ...s.playlists, [playlistId]: { ...p, trackIds } } }
+    }),
+
+  // 多选整体拖动：先摘出选中项，再插到目标位置（保持选中项之间的相对顺序）
+  moveTracksInPlaylist: (playlistId, movingIds, toTrackId) =>
+    set((s) => {
+      const p = s.playlists[playlistId]
+      if (!p || movingIds.includes(toTrackId)) return s
+      const moving = new Set(movingIds)
+      const kept = p.trackIds.filter((id) => !moving.has(id))
+      const ordered = p.trackIds.filter((id) => moving.has(id))
+      const at = kept.indexOf(toTrackId)
+      if (at < 0 || ordered.length === 0) return s
+      // 目标在选中项之后时插到其后，符合拖动方向的直觉
+      const fromFirst = p.trackIds.findIndex((id) => moving.has(id))
+      const toOriginal = p.trackIds.indexOf(toTrackId)
+      const insertAt = toOriginal > fromFirst ? at + 1 : at
+      const trackIds = [...kept.slice(0, insertAt), ...ordered, ...kept.slice(insertAt)]
       return { playlists: { ...s.playlists, [playlistId]: { ...p, trackIds } } }
     }),
 

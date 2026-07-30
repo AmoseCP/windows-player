@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePlayer, currentTrackId, PLAY_MODE_ORDER } from '../store/player'
 import type { PlayMode } from '../store/player'
 import { useLibrary } from '../store/library'
 import { useAudio } from '../hooks/useAudio'
 import { localFileUrl, formatDuration } from '../utils'
 import ContextMenu from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
 import NoteIcon from './NoteIcon'
 
 const MODE_META: Record<PlayMode, { icon: string; label: string }> = {
@@ -12,6 +13,29 @@ const MODE_META: Record<PlayMode, { icon: string; label: string }> = {
   loop: { icon: '🔁', label: '列表循环' },
   single: { icon: '🔂', label: '单曲循环' },
   shuffle: { icon: '🔀', label: '随机播放' }
+}
+
+const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const SLEEP_MINUTES = [15, 30, 45, 60, 90]
+const FADE_OPTIONS = [0, 1, 2, 4]
+
+/** 睡眠定时器剩余时间，每秒刷新；未设置或尚未算出时返回 null（由调用方显示图标） */
+function useSleepCountdown(sleepAt: number | null): string | null {
+  // 带上 at 一起存，切换定时器时旧值自然失效，无需在 effect 内同步清空
+  const [snap, setSnap] = useState<{ at: number; left: number } | null>(null)
+  useEffect(() => {
+    if (sleepAt === null) return
+    const update = (): void =>
+      setSnap({ at: sleepAt, left: Math.max(0, Math.round((sleepAt - Date.now()) / 1000)) })
+    const raf = requestAnimationFrame(update) // 首次立即显示
+    const t = setInterval(update, 1000)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearInterval(t)
+    }
+  }, [sleepAt])
+  if (sleepAt === null || snap?.at !== sleepAt) return null
+  return `${Math.floor(snap.left / 60)}:${String(snap.left % 60).padStart(2, '0')}`
 }
 
 function PlayerBar(): React.JSX.Element {
@@ -23,21 +47,72 @@ function PlayerBar(): React.JSX.Element {
   const { togglePlay, next, prev, setVolume, toggleMute, cyclePlayMode } = usePlayer.getState()
   const showLyrics = usePlayer((s) => s.showLyrics)
   const showOnline = usePlayer((s) => s.showOnline)
+  const showQueue = usePlayer((s) => s.showQueue)
+  const playbackRate = usePlayer((s) => s.playbackRate)
+  const fadeSeconds = usePlayer((s) => s.fadeSeconds)
+  const sleepAt = usePlayer((s) => s.sleepAt)
+  const sleepAfterTrack = usePlayer((s) => s.sleepAfterTrack)
   const track = useLibrary((s) => (trackId ? s.tracks[trackId] : null))
   const coversDir = useLibrary((s) => s.coversDir)
   const { currentTime, duration, seek } = useAudio()
+  const sleepLeft = useSleepCountdown(sleepAt)
 
   // 进度条拖动：拖动中显示预览位置，松手才真正 seek
   const [dragTime, setDragTime] = useState<number | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  // 播放模式选择菜单（模式按钮右键打开）
+  // 弹出菜单（模式 / 速度 / 定时器）
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null)
+  const [extraMenu, setExtraMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(
+    null
+  )
 
   const openModeMenu = (e: React.MouseEvent): void => {
     e.preventDefault()
     const rect = e.currentTarget.getBoundingClientRect()
     setModeMenu({ x: rect.left, y: rect.top - 8 })
   }
+
+  const openMenuAt = (e: React.MouseEvent, items: MenuItem[]): void => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setExtraMenu({ x: rect.left - 60, y: rect.top - 8, items })
+  }
+
+  const rateItems: MenuItem[] = RATES.map((r) => ({
+    label: r === 1 ? '正常速度 (1.0x)' : `${r.toFixed(2).replace(/0$/, '')}x`,
+    checked: playbackRate === r,
+    onClick: () => usePlayer.getState().setPlaybackRate(r)
+  }))
+
+  const sleepItems: MenuItem[] = [
+    ...SLEEP_MINUTES.map((m) => ({
+      label: `${m} 分钟后停止`,
+      onClick: () => {
+        usePlayer.getState().setSleepTimer(m)
+        usePlayer.getState().showNotice(`将在 ${m} 分钟后停止播放`)
+      }
+    })),
+    {
+      label: '播完当前曲目后停止',
+      checked: sleepAfterTrack,
+      onClick: () => {
+        usePlayer.getState().setSleepAfterTrack(true)
+        usePlayer.getState().showNotice('播完当前曲目后将停止')
+      }
+    },
+    {
+      label: '取消定时',
+      disabled: sleepAt === null && !sleepAfterTrack,
+      onClick: () => usePlayer.getState().setSleepTimer(null)
+    },
+    {
+      label: '淡入淡出',
+      submenu: FADE_OPTIONS.map((s) => ({
+        label: s === 0 ? '关闭' : `${s} 秒`,
+        checked: fadeSeconds === s,
+        onClick: () => usePlayer.getState().setFadeSeconds(s)
+      }))
+    }
+  ]
 
   const timeFromEvent = (clientX: number): number => {
     const el = trackRef.current
@@ -117,6 +192,27 @@ function PlayerBar(): React.JSX.Element {
       </div>
       <div className="playerbar-right">
         <button
+          className={`control-btn${showQueue ? ' mode-btn active' : ''}`}
+          title="播放队列"
+          onClick={() => usePlayer.getState().toggleQueue()}
+        >
+          ☰
+        </button>
+        <button
+          className={`control-btn${playbackRate !== 1 ? ' mode-btn active' : ''}`}
+          title={`播放速度：${playbackRate}x`}
+          onClick={(e) => openMenuAt(e, rateItems)}
+        >
+          {playbackRate === 1 ? '1x' : `${playbackRate}x`}
+        </button>
+        <button
+          className={`control-btn${sleepAt !== null || sleepAfterTrack ? ' mode-btn active' : ''}`}
+          title="睡眠定时器 / 淡入淡出"
+          onClick={(e) => openMenuAt(e, sleepItems)}
+        >
+          {sleepLeft ?? '⏱'}
+        </button>
+        <button
           className={`control-btn${showLyrics ? ' mode-btn active' : ''}`}
           title="歌词"
           onClick={() => usePlayer.getState().toggleLyrics()}
@@ -130,6 +226,14 @@ function PlayerBar(): React.JSX.Element {
         >
           ⧉
         </button>
+        {extraMenu && (
+          <ContextMenu
+            x={extraMenu.x}
+            y={extraMenu.y}
+            items={extraMenu.items}
+            onClose={() => setExtraMenu(null)}
+          />
+        )}
         <button
           className={`control-btn mode-btn${playMode !== 'order' ? ' active' : ''}`}
           title={`播放模式：${mode.label}（点击切换，右键选择）`}

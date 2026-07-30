@@ -51,6 +51,8 @@ export interface AppSettings {
   sidebarCollapsed?: boolean
   themeImage: string | null // 自定义背景图片的绝对路径（userData/theme 下）
   colorTheme?: string // 配色主题 id（dark/pink/red/blue/purple/orange）
+  playbackRate?: number // 播放速度倍率
+  fadeSeconds?: number // 淡入淡出时长（秒），0 = 关闭
 }
 
 export interface YouTubeSearchResult {

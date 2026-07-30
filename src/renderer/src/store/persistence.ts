@@ -25,7 +25,9 @@ function collect(): AppData {
       sidebarWidth: lib.sidebarWidth,
       sidebarCollapsed: lib.sidebarCollapsed,
       themeImage: lib.themeImage,
-      colorTheme: lib.colorTheme
+      colorTheme: lib.colorTheme,
+      playbackRate: player.playbackRate,
+      fadeSeconds: player.fadeSeconds
     }
   }
 }
@@ -52,6 +54,8 @@ function watched(): unknown[] {
     player.volume,
     player.muted,
     player.playMode,
+    player.playbackRate,
+    player.fadeSeconds,
     currentTrackId(player)
   ]
 }
@@ -109,6 +113,8 @@ export async function initPersistence(): Promise<void> {
       volume: st?.volume ?? 0.8,
       muted: st?.muted ?? false,
       playMode: st?.playMode ?? 'order',
+      playbackRate: st?.playbackRate ?? 1,
+      fadeSeconds: st?.fadeSeconds ?? 0,
       // 上次播放曲目恢复为「已选中未播放」，不自动出声
       ...(last && tracks[last] ? { queue: [last], queueIndex: 0, playing: false } : {})
     })

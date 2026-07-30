@@ -17,6 +17,31 @@ const AUDIO_FILTER = {
 
 const BATCH_SIZE = 10 // 分批解析，批间让出事件循环并回报进度
 
+/** 解析 m3u/m3u8：保留文件内顺序，跳过注释与已不存在的文件 */
+async function readPlaylistFile(file: string): Promise<{ name: string; paths: string[] } | null> {
+  try {
+    const buf = await fs.readFile(file)
+    let text = buf.toString('utf-8')
+    if (text.includes('�')) text = iconv.decode(buf, 'gbk') // 旧版 m3u 常为 GBK
+    const base = path.dirname(file)
+    const paths: string[] = []
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim()
+      if (!line || line.startsWith('#')) continue
+      const abs = path.isAbsolute(line) ? line : path.resolve(base, line)
+      try {
+        await fs.access(abs)
+        paths.push(abs)
+      } catch {
+        // 文件已不存在，跳过
+      }
+    }
+    return { name: path.basename(file, path.extname(file)), paths }
+  } catch {
+    return null
+  }
+}
+
 export function registerIpcHandlers(): void {
   ipcMain.handle('dialog:pickFiles', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -97,6 +122,41 @@ export function registerIpcHandlers(): void {
     } catch {
       return false
     }
+  })
+
+  // 歌单导出为标准 m3u8（相对/绝对路径均按绝对路径写，便于跨播放器使用）
+  ipcMain.handle(
+    'playlist:export',
+    async (_e, name: string, entries: { path: string; title: string; duration: number }[]) => {
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: '导出歌单',
+        defaultPath: `${name}.m3u8`,
+        filters: [{ name: '播放列表', extensions: ['m3u8', 'm3u'] }]
+      })
+      if (canceled || !filePath) return false
+      const lines = ['#EXTM3U', `#PLAYLIST:${name}`]
+      for (const t of entries) {
+        lines.push(`#EXTINF:${Math.round(t.duration)},${t.title}`)
+        lines.push(t.path)
+      }
+      await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf-8')
+      return true
+    }
+  )
+
+  ipcMain.handle('playlist:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: '导入歌单',
+      properties: ['openFile'],
+      filters: [{ name: '播放列表', extensions: ['m3u8', 'm3u'] }]
+    })
+    if (canceled || !filePaths[0]) return null
+    return readPlaylistFile(filePaths[0])
+  })
+
+  ipcMain.handle('playlist:read', async (_e, file: string) => {
+    if (typeof file !== 'string' || !file) return null
+    return readPlaylistFile(file)
   })
 
   // 主题背景：选择图片并复制到 userData/theme，返回目标绝对路径

@@ -22,8 +22,15 @@ interface Api {
   searchYouTube(query: string): Promise<YouTubeSearchResult[]>
   onPlayerStop(cb: () => void): () => void
   onMiniHover(cb: (hovered: boolean) => void): () => void
+  exportPlaylist(
+    name: string,
+    entries: { path: string; title: string; duration: number }[]
+  ): Promise<boolean>
+  importPlaylist(): Promise<{ name: string; paths: string[] } | null>
+  readPlaylist(file: string): Promise<{ name: string; paths: string[] } | null>
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>
+  onOpenFiles(cb: (files: string[]) => void): () => void
   onMediaKey(cb: (action: string) => void): () => void
 }
 
