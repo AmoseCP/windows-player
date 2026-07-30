@@ -7,13 +7,24 @@ import type {
   YouTubeHistoryItem
 } from '../../../shared/types'
 import { applyColorTheme } from '../themes'
+import { usePlayer } from './player'
 
 function ytKey(videoId: string, listId: string | null): string {
   return `${videoId}|${listId ?? ''}`
 }
 
-/** 当前主区视图：'library' = 音乐库，否则为歌单 id */
+/** 当前主区视图：'library' = 全部曲目，'folder:<绝对路径>' = 某个目录，否则为歌单 id */
 export type View = 'library' | string
+
+export const FOLDER_VIEW_PREFIX = 'folder:'
+
+/** 音乐库的目录树节点（由曲目路径派生，不额外存储） */
+export interface DirNode {
+  name: string
+  path: string
+  children: DirNode[]
+  total: number // 含子目录的曲目总数
+}
 
 interface LibraryState {
   tracks: Record<string, Track>
@@ -32,6 +43,10 @@ interface LibraryState {
   themeVersion: number // 同名文件被替换时用于刷新缓存
   colorTheme: string
   youtubeHistory: YouTubeHistoryItem[] // 在线播放记录，新的在前
+  musicFolders: string[] // 登记为音乐库来源的根文件夹
+  ignoredPaths: string[] // 手动删除过的文件，重新扫描不再加回
+  expandedDirs: Record<string, boolean> // 文件夹树的展开状态
+  scanning: boolean
   // 列表多选（不持久化）：放在 store 里供拖拽逻辑读取
   selectedTrackIds: Set<string>
   setSelectedTrackIds: (next: Set<string> | ((prev: Set<string>) => Set<string>)) => void
@@ -49,6 +64,10 @@ interface LibraryState {
   /** 导入指定路径并返回对应的曲目 id（已在库中的复用现有 id），用于 m3u 歌单导入 */
   importPathsAsTrackIds: (paths: string[]) => Promise<string[]>
   importPlaylistFile: (file?: string) => Promise<void>
+  addMusicFolder: () => Promise<void>
+  removeMusicFolder: (folder: string) => void
+  rescanMusicFolders: (silent?: boolean) => Promise<void>
+  toggleDir: (path: string) => void
   /** 从直接音频链接下载并入库，返回错误信息（成功为 null） */
   importFromUrl: (url: string) => Promise<string | null>
   markMissing: (id: string) => void
@@ -100,6 +119,10 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   themeVersion: 0,
   colorTheme: 'dark',
   youtubeHistory: [],
+  musicFolders: [],
+  ignoredPaths: [],
+  expandedDirs: {},
+  scanning: false,
   selectedTrackIds: new Set<string>(),
 
   setSelectedTrackIds: (next) =>
@@ -240,6 +263,70 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       set({ importProgress: null })
     }
   },
+
+  addMusicFolder: async () => {
+    const folder = await window.api.pickMusicFolder()
+    if (!folder) return
+    if (get().musicFolders.includes(folder)) return
+    set((s) => ({ musicFolders: [...s.musicFolders, folder] }))
+    await get().rescanMusicFolders()
+  },
+
+  removeMusicFolder: (folder) =>
+    set((s) => {
+      const musicFolders = s.musicFolders.filter((f) => f !== folder)
+      // 仅取消登记，已入库的曲目保留（用户可再手动删除）
+      return {
+        musicFolders,
+        view: s.view === FOLDER_VIEW_PREFIX + folder ? 'library' : s.view
+      }
+    }),
+
+  /** 重新扫描：新增入库、移动/改名的更新路径、消失的标灰 */
+  rescanMusicFolders: async (silent) => {
+    const { musicFolders, ignoredPaths, scanning, importProgress } = get()
+    if (musicFolders.length === 0 || scanning || importProgress) return
+    set({ scanning: true, importProgress: { done: 0, total: 0 } })
+    const offProgress = window.api.onImportProgress((p) => set({ importProgress: p }))
+    try {
+      const known = Object.values(get().tracks).map((t) => ({
+        id: t.id,
+        path: t.path,
+        size: t.size
+      }))
+      const r = await window.api.scanLibrary(musicFolders, known, ignoredPaths)
+      set((s) => {
+        const tracks = { ...s.tracks }
+        const trackOrder = [...s.trackOrder]
+        for (const { id, path } of r.relocated) {
+          if (tracks[id]) tracks[id] = { ...tracks[id], path, missing: false }
+        }
+        for (const id of r.missingIds) {
+          if (tracks[id]) tracks[id] = { ...tracks[id], missing: true }
+        }
+        for (const t of r.added) {
+          tracks[t.id] = t
+          trackOrder.push(t.id)
+        }
+        return { tracks, trackOrder }
+      })
+      if (!silent) {
+        const parts: string[] = []
+        if (r.added.length) parts.push(`新增 ${r.added.length} 首`)
+        if (r.relocated.length) parts.push(`更新位置 ${r.relocated.length} 首`)
+        if (r.missingIds.length) parts.push(`缺失 ${r.missingIds.length} 首`)
+        usePlayer
+          .getState()
+          .showNotice(parts.length ? `扫描完成：${parts.join('，')}` : '扫描完成，没有变化')
+      }
+    } finally {
+      offProgress()
+      set({ scanning: false, importProgress: null })
+    }
+  },
+
+  toggleDir: (path) =>
+    set((s) => ({ expandedDirs: { ...s.expandedDirs, [path]: !s.expandedDirs[path] } })),
 
   markMissing: (id) =>
     set((s) => {
@@ -386,6 +473,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     set((s) => {
       const drop = new Set(trackIds)
       const tracks = { ...s.tracks }
+      // 记下路径，重新扫描时不再自动加回
+      const removedPaths = trackIds.map((id) => s.tracks[id]?.path).filter(Boolean) as string[]
       for (const id of drop) delete tracks[id]
       const playlists = { ...s.playlists }
       for (const pid of Object.keys(playlists)) {
@@ -396,7 +485,12 @@ export const useLibrary = create<LibraryState>((set, get) => ({
           }
         }
       }
-      return { tracks, trackOrder: s.trackOrder.filter((id) => !drop.has(id)), playlists }
+      return {
+        tracks,
+        trackOrder: s.trackOrder.filter((id) => !drop.has(id)),
+        playlists,
+        ignoredPaths: [...new Set([...s.ignoredPaths, ...removedPaths])]
+      }
     }),
 
   /** 编辑曲目信息：只改播放器内的记录，不写回磁盘文件标签 */
@@ -425,6 +519,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   // 从音乐库删除：清掉所有歌单中的引用，不删磁盘文件
   deleteTrackFromLibrary: (trackId) =>
     set((s) => {
+      const removedPath = s.tracks[trackId]?.path
       const tracks = { ...s.tracks }
       delete tracks[trackId]
       const playlists = { ...s.playlists }
@@ -439,7 +534,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       return {
         tracks,
         trackOrder: s.trackOrder.filter((id) => id !== trackId),
-        playlists
+        playlists,
+        ignoredPaths: removedPath ? [...new Set([...s.ignoredPaths, removedPath])] : s.ignoredPaths
       }
     }),
 

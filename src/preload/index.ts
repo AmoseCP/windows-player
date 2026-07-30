@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../shared/types'
+import type {
+  AppData,
+  Track,
+  ImportProgress,
+  ScanResult,
+  YouTubeSearchResult
+} from '../shared/types'
 
 // 渲染进程可用的白名单 API。
 // 注意：不再暴露 @electron-toolkit/preload 的 electronAPI —— 它包含任意 channel 的
@@ -7,6 +13,12 @@ import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../sha
 const api = {
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFiles'),
   pickFolder: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFolder'),
+  pickMusicFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickMusicFolder'),
+  scanLibrary: (
+    folders: string[],
+    known: { id: string; path: string; size?: number }[],
+    ignored: string[]
+  ): Promise<ScanResult> => ipcRenderer.invoke('library:scan', folders, known, ignored),
   getCoversDir: (): Promise<string> => ipcRenderer.invoke('app:coversDir'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
   getPlatform: (): Promise<string> => ipcRenderer.invoke('app:platform'),

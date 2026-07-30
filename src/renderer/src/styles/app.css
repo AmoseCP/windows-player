@@ -1459,3 +1459,29 @@ input {
   line-height: 1.7;
   color: var(--text-muted);
 }
+
+/* 音乐库目录树 */
+.dir-item {
+  gap: 6px;
+  font-size: 13px;
+}
+
+.dir-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}

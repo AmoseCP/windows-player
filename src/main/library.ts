@@ -9,13 +9,23 @@ function isSupportedAudio(filePath: string): boolean {
   return (SUPPORTED_EXTENSIONS as readonly string[]).includes(path.extname(filePath).toLowerCase())
 }
 
+export interface AudioFileEntry {
+  path: string
+  size: number
+}
+
+/** 只需要路径时的便捷封装 */
+export async function collectAudioFiles(paths: string[]): Promise<string[]> {
+  return (await collectAudioFileEntries(paths)).map((e) => e.path)
+}
+
 /**
- * 把文件/文件夹混合路径列表展开为受支持的音频文件列表。
+ * 把文件/文件夹混合路径列表展开为受支持的音频文件列表（含文件大小）。
  * 用 lstat 跳过符号链接、按 inode 去重并限制深度 —— 否则指向上层目录的软链
  * 会形成环，产生海量重复路径并挂死导入。
  */
-export async function collectAudioFiles(paths: string[]): Promise<string[]> {
-  const result: string[] = []
+export async function collectAudioFileEntries(paths: string[]): Promise<AudioFileEntry[]> {
+  const result: AudioFileEntry[] = []
   const seenPaths = new Set<string>()
   const seenDirs = new Set<string>() // `dev:ino`，防目录环
 
@@ -43,7 +53,7 @@ export async function collectAudioFiles(paths: string[]): Promise<string[]> {
       }
     } else if (stat.isFile() && isSupportedAudio(p) && !seenPaths.has(p)) {
       seenPaths.add(p)
-      result.push(p)
+      result.push({ path: p, size: stat.size })
     }
   }
 

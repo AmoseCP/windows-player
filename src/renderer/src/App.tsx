@@ -71,6 +71,8 @@ function App(): React.JSX.Element {
         .map((t) => t.coverFile)
         .filter((f): f is string => !!f)
       void window.api.gcCovers(used)
+      // 自动同步已登记的音乐文件夹：别人加的新歌无需手动导入
+      void useLibrary.getState().rescanMusicFolders(true)
     })
     // 窗口关闭（隐藏到托盘）时立即停止本地与在线播放
     const offStop = window.api.onPlayerStop(() => {

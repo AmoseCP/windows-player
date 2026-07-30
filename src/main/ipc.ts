@@ -3,12 +3,12 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { parseFile } from 'music-metadata'
 import iconv from 'iconv-lite'
-import { collectAudioFiles } from './library'
+import { collectAudioFiles, collectAudioFileEntries } from './library'
 import { parseTrack, coversDir } from './metadata'
 import { loadData, scheduleSave } from './store'
 import { searchYouTube } from './youtubeSearch'
 import { SUPPORTED_EXTENSIONS } from '../shared/types'
-import type { AppData, Track } from '../shared/types'
+import type { AppData, ScanResult, Track } from '../shared/types'
 
 const AUDIO_FILTER = {
   name: '音频文件',
@@ -57,6 +57,89 @@ export function registerIpcHandlers(): void {
     })
     return canceled ? [] : filePaths
   })
+
+  ipcMain.handle('dialog:pickMusicFolder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: '选择音乐文件夹',
+      properties: ['openDirectory']
+    })
+    return canceled ? null : (filePaths[0] ?? null)
+  })
+
+  /**
+   * 重新扫描登记的音乐文件夹：
+   * - 新文件入库；已忽略（曾手动删除）的路径不再加回
+   * - 根目录下已消失的曲目：先按文件大小尝试匹配到新出现的文件（移动/改名），
+   *   匹配不上才标记缺失，避免歌单引用断链
+   */
+  ipcMain.handle(
+    'library:scan',
+    async (
+      event,
+      folders: string[],
+      known: { id: string; path: string; size?: number }[],
+      ignored: string[]
+    ): Promise<ScanResult> => {
+      const roots = (folders ?? []).filter((f) => typeof f === 'string' && f)
+      if (roots.length === 0) return { added: [], relocated: [], missingIds: [], scanned: 0 }
+
+      const entries = await collectAudioFileEntries(roots)
+      const foundPaths = new Set(entries.map((e) => e.path))
+      const knownByPath = new Map(known.map((k) => [k.path, k]))
+      const ignoredSet = new Set(ignored ?? [])
+
+      const isUnderRoots = (p: string): boolean =>
+        roots.some((r) => p === r || p.startsWith(r.endsWith(path.sep) ? r : r + path.sep))
+
+      // 根目录下、但扫描时已找不到的曲目 —— 可能被移动/改名，也可能真的没了
+      const vanished = known.filter((k) => isUnderRoots(k.path) && !foundPaths.has(k.path))
+      // 库里没有的新文件（排除手动删除过的）
+      const fresh = entries.filter((e) => !knownByPath.has(e.path) && !ignoredSet.has(e.path))
+
+      // 按文件大小把新文件匹配回消失的曲目；同尺寸多个候选时优先同文件名
+      const bySize = new Map<number, typeof vanished>()
+      for (const v of vanished) {
+        if (typeof v.size !== 'number') continue
+        const list = bySize.get(v.size) ?? []
+        list.push(v)
+        bySize.set(v.size, list)
+      }
+      const relocated: { id: string; path: string }[] = []
+      const relocatedIds = new Set<string>()
+      const remaining: typeof fresh = []
+      for (const f of fresh) {
+        const candidates = (bySize.get(f.size) ?? []).filter((c) => !relocatedIds.has(c.id))
+        if (candidates.length === 0) {
+          remaining.push(f)
+          continue
+        }
+        const sameName = candidates.find((c) => path.basename(c.path) === path.basename(f.path))
+        const target = sameName ?? candidates[0]
+        relocated.push({ id: target.id, path: f.path })
+        relocatedIds.add(target.id)
+      }
+
+      // 剩余新文件分批解析，复用导入进度事件
+      const added: Track[] = []
+      for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
+        const batch = remaining.slice(i, i + BATCH_SIZE)
+        added.push(...(await Promise.all(batch.map((e) => parseTrack(e.path)))))
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('import:progress', {
+            done: Math.min(i + BATCH_SIZE, remaining.length),
+            total: remaining.length
+          })
+        }
+      }
+
+      return {
+        added,
+        relocated,
+        missingIds: vanished.filter((v) => !relocatedIds.has(v.id)).map((v) => v.id),
+        scanned: entries.length
+      }
+    }
+  )
 
   ipcMain.handle('app:coversDir', () => coversDir())
 

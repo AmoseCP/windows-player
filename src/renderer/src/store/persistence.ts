@@ -17,6 +17,8 @@ function collect(): AppData {
     playlists: lib.playlists,
     rootPlaylistIds: lib.rootPlaylistIds,
     youtubeHistory: lib.youtubeHistory,
+    musicFolders: lib.musicFolders,
+    ignoredPaths: lib.ignoredPaths,
     settings: {
       volume: player.volume,
       muted: player.muted,
@@ -47,6 +49,8 @@ function watched(): unknown[] {
     lib.playlists,
     lib.rootPlaylistIds,
     lib.youtubeHistory,
+    lib.musicFolders,
+    lib.ignoredPaths,
     lib.sidebarWidth,
     lib.sidebarCollapsed,
     lib.themeImage,
@@ -104,7 +108,9 @@ export async function initPersistence(): Promise<void> {
       sidebarCollapsed: data.settings?.sidebarCollapsed ?? false,
       themeImage: data.settings?.themeImage ?? null,
       colorTheme: data.settings?.colorTheme ?? 'dark',
-      youtubeHistory: data.youtubeHistory ?? []
+      youtubeHistory: data.youtubeHistory ?? [],
+      musicFolders: data.musicFolders ?? [],
+      ignoredPaths: data.ignoredPaths ?? []
     })
     applyColorTheme(data.settings?.colorTheme ?? 'dark')
     const st = data.settings

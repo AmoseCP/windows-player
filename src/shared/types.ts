@@ -20,7 +20,8 @@ export interface Track {
   duration: number // 秒
   coverFile: string | null // userData/covers/ 下的文件名
   addedAt: number
-  missing?: boolean // 播放时发现文件不存在则置 true，列表标灰
+  size?: number // 文件字节数，用于识别被移动/改名的同一文件
+  missing?: boolean // 文件不存在则置 true，列表标灰
 }
 
 export interface ImportProgress {
@@ -80,4 +81,14 @@ export interface AppData {
   rootPlaylistIds: string[]
   settings: AppSettings
   youtubeHistory?: YouTubeHistoryItem[]
+  musicFolders?: string[] // 登记为音乐库来源的根文件夹
+  ignoredPaths?: string[] // 手动从库中删除过的文件，重新扫描时不再自动加回
+}
+
+/** 重新扫描结果 */
+export interface ScanResult {
+  added: Track[] // 新发现的曲目
+  relocated: { id: string; path: string }[] // 被移动/改名、已重新匹配上的曲目
+  missingIds: string[] // 根目录下已找不到的曲目
+  scanned: number // 扫描到的音频文件总数
 }

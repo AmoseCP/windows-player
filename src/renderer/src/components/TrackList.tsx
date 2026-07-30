@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useLibrary } from '../store/library'
+import { useLibrary, FOLDER_VIEW_PREFIX } from '../store/library'
+import { isUnderDir } from '../folderTree'
 import { usePlayer, currentTrackId } from '../store/player'
 import { localFileUrl, formatDuration } from '../utils'
 import ContextMenu from './ContextMenu'
@@ -142,7 +143,11 @@ function TrackList(): React.JSX.Element {
   const trackOrder = useLibrary((s) => s.trackOrder)
   const coversDir = useLibrary((s) => s.coversDir)
   const view = useLibrary((s) => s.view)
-  const playlist = useLibrary((s) => (s.view === 'library' ? null : (s.playlists[s.view] ?? null)))
+  const playlist = useLibrary((s) =>
+    s.view === 'library' || s.view.startsWith(FOLDER_VIEW_PREFIX)
+      ? null
+      : (s.playlists[s.view] ?? null)
+  )
   const playingTrackId = usePlayer((s) => currentTrackId(s))
   const search = useLibrary((s) => s.search)
   // 列头排序状态；null = 默认按导入时间。仅音乐库视图可用，歌单内以手动顺序为准
@@ -153,13 +158,19 @@ function TrackList(): React.JSX.Element {
   // 多选：选中的曲目 id 与 Shift 范围选的锚点
   const selected = useLibrary((s) => s.selectedTrackIds)
   const anchorRef = useRef<number | null>(null) // Shift 范围选锚点；用 ref 避免连点时读到旧值
-  const isLibrary = view === 'library'
+  const folderPath = view.startsWith(FOLDER_VIEW_PREFIX)
+    ? view.slice(FOLDER_VIEW_PREFIX.length)
+    : null
+  // 目录视图与全部曲目一样按导入顺序展示、支持列头排序，不支持手动拖排
+  const isLibrary = view === 'library' || folderPath !== null
   const searching = search.trim() !== ''
   const sortable = !isLibrary && !searching
 
   const sorted = useMemo(() => {
     const ids = isLibrary ? trackOrder : (playlist?.trackIds ?? [])
     let list = ids.map((id) => tracks[id]).filter(Boolean)
+    // 目录视图：只保留该目录及其子目录下的曲目
+    if (folderPath) list = list.filter((t) => isUnderDir(t.path, folderPath))
     // 按 标题/艺术家/专辑 实时过滤（大小写不敏感）
     const q = search.trim().toLowerCase()
     if (q) {
@@ -172,7 +183,7 @@ function TrackList(): React.JSX.Element {
     }
     if (isLibrary && sort) list.sort(compareBy(sort.key, sort.dir))
     return list
-  }, [tracks, trackOrder, sort, isLibrary, playlist, search])
+  }, [tracks, trackOrder, sort, isLibrary, playlist, search, folderPath])
 
   const sortedIds = useMemo(() => sorted.map((t) => t.id), [sorted])
 
@@ -355,6 +366,8 @@ function TrackList(): React.JSX.Element {
       <div className="empty-state">
         {searching ? (
           <div className="empty-state-title">没有匹配的歌曲</div>
+        ) : folderPath ? (
+          <div className="empty-state-title">该文件夹下没有曲目</div>
         ) : isLibrary ? (
           <>
             <div className="empty-state-title">音乐库为空</div>

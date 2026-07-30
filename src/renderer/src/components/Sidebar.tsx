@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { useLibrary } from '../store/library'
+import { useLibrary, FOLDER_VIEW_PREFIX } from '../store/library'
+import type { DirNode } from '../store/library'
+import { buildFolderTree } from '../folderTree'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -78,6 +80,42 @@ function FolderHeader({
   )
 }
 
+/** 目录树节点：可展开、可点选筛选该目录（含子目录）的曲目 */
+function DirTreeNode({ node, depth }: { node: DirNode; depth: number }): React.JSX.Element {
+  const view = useLibrary((s) => s.view)
+  const expanded = useLibrary((s) => !!s.expandedDirs[node.path])
+  const viewKey = FOLDER_VIEW_PREFIX + node.path
+  const hasChildren = node.children.length > 0
+
+  return (
+    <div>
+      <div
+        className={`sidebar-item dir-item${view === viewKey ? ' active' : ''}`}
+        style={{ paddingLeft: 14 + depth * 12 }}
+        title={node.path}
+        onClick={() => useLibrary.getState().setView(viewKey)}
+      >
+        <span
+          className="folder-caret"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (hasChildren) useLibrary.getState().toggleDir(node.path)
+          }}
+        >
+          {hasChildren ? (expanded ? '▾' : '▸') : ''}
+        </span>
+        <span>📂</span>
+        <span className="dir-name">{node.name}</span>
+        <span className="dir-count">{node.total}</span>
+      </div>
+      {expanded &&
+        node.children.map((child) => (
+          <DirTreeNode key={child.path} node={child} depth={depth + 1} />
+        ))}
+    </div>
+  )
+}
+
 interface MenuState {
   x: number
   y: number
@@ -107,6 +145,11 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
     deleteFolder
   } = useLibrary.getState()
 
+  const tracks = useLibrary((s) => s.tracks)
+  const musicFolders = useLibrary((s) => s.musicFolders)
+  const scanning = useLibrary((s) => s.scanning)
+  const dirTree = useMemo(() => buildFolderTree(Object.values(tracks)), [tracks])
+
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; kind: 'playlist' | 'folder' } | null>(null)
@@ -116,6 +159,31 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
     e.stopPropagation()
     setMenu({ x: e.clientX, y: e.clientY, items })
   }
+
+  // 音乐库右键：管理作为库来源的音乐文件夹
+  const libraryMenu = (e: React.MouseEvent): void =>
+    openMenu(e, [
+      {
+        label: '添加音乐文件夹…',
+        onClick: () => void useLibrary.getState().addMusicFolder()
+      },
+      {
+        label: scanning ? '正在扫描…' : '重新扫描音乐文件夹',
+        disabled: scanning || musicFolders.length === 0,
+        onClick: () => void useLibrary.getState().rescanMusicFolders()
+      },
+      ...(musicFolders.length > 0
+        ? [
+            {
+              label: '移除音乐文件夹',
+              submenu: musicFolders.map((f) => ({
+                label: f,
+                onClick: () => useLibrary.getState().removeMusicFolder(f)
+              }))
+            }
+          ]
+        : [])
+    ])
 
   const blankMenu = (e: React.MouseEvent): void =>
     openMenu(e, [
@@ -253,14 +321,17 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
       <div
         className={`sidebar-item${view === 'library' ? ' active' : ''}`}
         onClick={() => setView('library')}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        }}
+        onContextMenu={(e) => libraryMenu(e)}
       >
         <span>🎵</span>
         <span>音乐库</span>
+        {scanning && <span className="sidebar-badge">扫描中…</span>}
       </div>
+
+      {/* 音乐库的磁盘目录树（由曲目路径派生） */}
+      {dirTree.map((node) => (
+        <DirTreeNode key={node.path} node={node} depth={0} />
+      ))}
 
       {folders.map((folder) => {
         const expanded = expandedFolders[folder.id]

@@ -1,8 +1,20 @@
-import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../shared/types'
+import type {
+  AppData,
+  Track,
+  ImportProgress,
+  ScanResult,
+  YouTubeSearchResult
+} from '../shared/types'
 
 interface Api {
   pickFiles(): Promise<string[]>
   pickFolder(): Promise<string[]>
+  pickMusicFolder(): Promise<string | null>
+  scanLibrary(
+    folders: string[],
+    known: { id: string; path: string; size?: number }[],
+    ignored: string[]
+  ): Promise<ScanResult>
   getCoversDir(): Promise<string>
   getAppVersion(): Promise<string>
   getPlatform(): Promise<string>

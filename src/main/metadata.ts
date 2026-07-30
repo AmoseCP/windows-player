@@ -41,6 +41,11 @@ export async function parseTrack(filePath: string): Promise<Track> {
     addedAt: Date.now()
   }
   try {
+    track.size = (await fs.stat(filePath)).size
+  } catch {
+    // 取不到大小不影响导入，只是无法参与移动重匹配
+  }
+  try {
     const meta = await parseFile(filePath, { duration: true })
     if (meta.common.title) track.title = meta.common.title
     if (meta.common.artist) track.artist = meta.common.artist

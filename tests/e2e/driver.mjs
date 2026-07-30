@@ -535,6 +535,85 @@ if (phase === '1') {
     expect(r.edited && r.blankIgnored, '歌曲信息编辑异常: ' + JSON.stringify(r))
   })
 
+  await test('音乐文件夹：扫描/目录树/筛选/重匹配/不复活', async () => {
+    const root = path.join(os.tmpdir(), 'bcap-scan-test')
+    fs.rmSync(root, { recursive: true, force: true })
+    fs.mkdirSync(path.join(root, 'A'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'B'), { recursive: true })
+    // 用夹具音频造出目录结构（内容不同以便按大小区分）
+    fs.copyFileSync(path.join(MUSIC, 'test1.mp3'), path.join(root, 'A', 'a1.mp3'))
+    fs.copyFileSync(path.join(MUSIC, 'test-cover.mp3'), path.join(root, 'A', 'a2.mp3'))
+    fs.copyFileSync(path.join(MUSIC, 'sub/test3.flac'), path.join(root, 'B', 'b1.flac'))
+    fs.writeFileSync(path.join(root, 'note.txt'), 'not audio')
+    const rootJs = root.replace(/\\/g, '/')
+
+    const first = await ev(`
+      const lib = () => window.__test.useLibrary.getState()
+      const before = { tracks: lib().tracks, trackOrder: lib().trackOrder }
+      window.__scanBackup = before
+      window.__test.useLibrary.setState({ tracks: {}, trackOrder: [], musicFolders: ['${rootJs}'], ignoredPaths: [] })
+      await lib().rescanMusicFolders(true)
+      const { buildFolderTree } = await import('/src/folderTree.ts')
+      const tree = buildFolderTree(Object.values(lib().tracks))
+      const childNames = tree[0] ? tree[0].children.map(c => c.name).sort() : []
+      lib().setView('folder:${rootJs}/A')
+      await new Promise(r => setTimeout(r, 350))
+      const subRows = document.querySelectorAll('.track-row').length
+      lib().setView('library')
+      return { count: lib().trackOrder.length, childNames, subRows }
+    `)
+    expect(first.count === 3, '扫描应入库 3 首（跳过 txt），实际 ' + first.count)
+    expect(JSON.stringify(first.childNames) === '["A","B"]', '目录树子节点异常: ' + JSON.stringify(first.childNames))
+    expect(first.subRows === 2, '目录筛选行数应为 2，实际 ' + first.subRows)
+
+    // 磁盘上移动+改名一个文件，删除另一个，新增一个
+    fs.mkdirSync(path.join(root, 'C'), { recursive: true })
+    fs.renameSync(path.join(root, 'A', 'a1.mp3'), path.join(root, 'C', 'renamed.mp3'))
+    fs.rmSync(path.join(root, 'B', 'b1.flac'))
+    fs.copyFileSync(path.join(MUSIC, 'sub/无标签.m4a'), path.join(root, 'B', 'new.m4a'))
+
+    const second = await ev(`
+      const lib = () => window.__test.useLibrary.getState()
+      const movedId = lib().trackOrder.find(i => lib().tracks[i].path.endsWith('a1.mp3'))
+      const pid = lib().createPlaylist(null)
+      lib().addTrackToPlaylist(pid, movedId)
+      await lib().rescanMusicFolders(true)
+      const moved = lib().tracks[movedId]
+      const gone = Object.values(lib().tracks).find(t => t.path.endsWith('b1.flac'))
+      window.__scanPid = pid
+      return {
+        relocated: !!moved && moved.path.endsWith('C/renamed.mp3'),
+        notMissing: moved ? moved.missing !== true : false,
+        playlistIntact: lib().playlists[pid].trackIds.includes(movedId),
+        deletedMarked: gone ? gone.missing === true : false,
+        addedNew: Object.values(lib().tracks).some(t => t.path.endsWith('new.m4a'))
+      }
+    `)
+    expect(second.relocated && second.notMissing, '移动+改名未重新匹配: ' + JSON.stringify(second))
+    expect(second.playlistIntact, '重匹配后歌单引用断链')
+    expect(second.deletedMarked, '真删除的文件未标记缺失')
+    expect(second.addedNew, '新增文件未入库')
+
+    const third = await ev(`
+      const lib = () => window.__test.useLibrary.getState()
+      const id = lib().trackOrder.find(i => lib().tracks[i].path.endsWith('new.m4a'))
+      lib().deleteTrackFromLibrary(id)
+      await lib().rescanMusicFolders(true)
+      const back = Object.values(lib().tracks).some(t => t.path.endsWith('new.m4a'))
+      // 还原现场，避免影响后续阶段
+      lib().deletePlaylist(window.__scanPid)
+      window.__test.useLibrary.setState({
+        tracks: window.__scanBackup.tracks,
+        trackOrder: window.__scanBackup.trackOrder,
+        musicFolders: [], ignoredPaths: []
+      })
+      return { resurrected: back, restored: lib().trackOrder.length }
+    `)
+    expect(!third.resurrected, '手动删除的文件在重扫后复活了')
+    expect(third.restored === 3, '未还原音乐库，残留 ' + third.restored)
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
   await test('大库性能：虚拟滚动生效', async () => {
     const r = await ev(`
       const before = {
