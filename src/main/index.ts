@@ -166,6 +166,11 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.bethelchurch.audioplayer')
 
+  // macOS 开发模式下 Dock 显示的是 Electron 默认图标，主动换成应用 logo
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(nativeImage.createFromPath(icon))
+  }
+
   registerLocalFileProtocol()
 
   // 打包后页面为 file:// 加载，请求不带 Referer，YouTube 嵌入播放器会报
