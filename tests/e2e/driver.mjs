@@ -437,7 +437,14 @@ if (phase === '1') {
     expect(src && src.includes('watch?v=dQw4w9WgXcQ'), 'webview 未加载: ' + src)
     const localPaused = await ev(`return window.__test.usePlayer.getState().playing === false`)
     expect(localPaused, '在线播放未暂停本地')
+    const hidden = await ev(
+      `return !document.querySelector('.playerbar button[title="播放/暂停"]') && !!document.querySelector('.playerbar-online-hint')`
+    )
+    expect(hidden, '在线播放时本地播放控制未隐藏')
     await ev(`window.__test.usePlayer.getState().toggleOnline()`)
+    await sleep(300)
+    const restored = await ev(`return !!document.querySelector('.playerbar button[title="播放/暂停"]')`)
+    expect(restored, '关闭在线面板后本地控制未恢复')
   })
 
   await test('YouTube 搜索（网络）', async () => {

@@ -21,6 +21,7 @@ function PlayerBar(): React.JSX.Element {
   const playMode = usePlayer((s) => s.playMode)
   const { togglePlay, next, prev, setVolume, toggleMute, cyclePlayMode } = usePlayer.getState()
   const showLyrics = usePlayer((s) => s.showLyrics)
+  const showOnline = usePlayer((s) => s.showOnline)
   const track = useLibrary((s) => (trackId ? s.tracks[trackId] : null))
   const coversDir = useLibrary((s) => s.coversDir)
   const { currentTime, duration, seek } = useAudio()
@@ -78,30 +79,37 @@ function PlayerBar(): React.JSX.Element {
         <div className="playerbar-artist">{track ? track.artist : '—'}</div>
       </div>
       <div className="playerbar-center">
-        <div className="playerbar-controls">
-          <button className="control-btn" title="上一首" onClick={prev}>
-            ⏮
-          </button>
-          <button className="control-btn play" title="播放/暂停" onClick={togglePlay}>
-            {playing ? '⏸' : '▶'}
-          </button>
-          <button className="control-btn" title="下一首" onClick={() => next(false)}>
-            ⏭
-          </button>
-        </div>
-        <div className="progress-row">
-          <span>{formatDuration(shownTime)}</span>
-          <div
-            ref={trackRef}
-            className="progress-track"
-            onPointerDown={onProgressPointerDown}
-            onPointerMove={onProgressPointerMove}
-            onPointerUp={onProgressPointerUp}
-          >
-            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
-          </div>
-          <span>{formatDuration(duration)}</span>
-        </div>
+        {showOnline ? (
+          // 在线播放期间隐藏本地播放控制，避免两路声音
+          <div className="playerbar-online-hint">在线播放中 · 本地播放控制已停用</div>
+        ) : (
+          <>
+            <div className="playerbar-controls">
+              <button className="control-btn" title="上一首" onClick={prev}>
+                ⏮
+              </button>
+              <button className="control-btn play" title="播放/暂停" onClick={togglePlay}>
+                {playing ? '⏸' : '▶'}
+              </button>
+              <button className="control-btn" title="下一首" onClick={() => next(false)}>
+                ⏭
+              </button>
+            </div>
+            <div className="progress-row">
+              <span>{formatDuration(shownTime)}</span>
+              <div
+                ref={trackRef}
+                className="progress-track"
+                onPointerDown={onProgressPointerDown}
+                onPointerMove={onProgressPointerMove}
+                onPointerUp={onProgressPointerUp}
+              >
+                <div className="progress-fill" style={{ width: `${progressPct}%` }} />
+              </div>
+              <span>{formatDuration(duration)}</span>
+            </div>
+          </>
+        )}
       </div>
       <div className="playerbar-right">
         <button

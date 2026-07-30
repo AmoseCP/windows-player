@@ -386,6 +386,11 @@ input {
   gap: 18px;
 }
 
+.playerbar-online-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 .control-btn {
   color: var(--text-secondary);
   font-size: 18px;

@@ -10,6 +10,7 @@ export function useHotkeys(): void {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
         return
       const player = usePlayer.getState()
+      if (player.showOnline) return // 在线播放期间禁用本地播放快捷键
       if (e.code === 'Space') {
         e.preventDefault()
         player.togglePlay()
@@ -26,6 +27,7 @@ export function useHotkeys(): void {
     // 系统媒体键（主进程 globalShortcut 转发，注册失败则收不到事件，静默降级）
     const offMedia = window.api.onMediaKey((action) => {
       const player = usePlayer.getState()
+      if (player.showOnline) return // 在线播放期间媒体键不控制本地播放
       if (action === 'play-pause') player.togglePlay()
       else if (action === 'next') player.next(false)
       else if (action === 'prev') player.prev()
