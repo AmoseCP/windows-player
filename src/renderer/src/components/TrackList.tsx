@@ -152,7 +152,6 @@ function TrackList(): React.JSX.Element {
   const [editing, setEditing] = useState<Track | null>(null)
   // 多选：选中的曲目 id 与 Shift 范围选的锚点
   const selected = useLibrary((s) => s.selectedTrackIds)
-  const setSelected = useLibrary.getState().setSelectedTrackIds
   const anchorRef = useRef<number | null>(null) // Shift 范围选锚点；用 ref 避免连点时读到旧值
   const isLibrary = view === 'library'
   const searching = search.trim() !== ''
@@ -208,9 +207,9 @@ function TrackList(): React.JSX.Element {
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault()
-        setSelected(new Set(sortedIds))
+        useLibrary.getState().setSelectedTrackIds(new Set(sortedIds))
       } else if (e.key === 'Escape') {
-        setSelected(new Set())
+        useLibrary.getState().setSelectedTrackIds(new Set())
       }
     }
     window.addEventListener('keydown', onKey)
@@ -246,11 +245,11 @@ function TrackList(): React.JSX.Element {
       const anchor = anchorRef.current
       if (e.shiftKey && anchor !== null) {
         const [a, b] = anchor <= index ? [anchor, index] : [index, anchor]
-        setSelected(new Set(sortedIds.slice(a, b + 1)))
+        useLibrary.getState().setSelectedTrackIds(new Set(sortedIds.slice(a, b + 1)))
         return
       }
       if (e.ctrlKey || e.metaKey) {
-        setSelected((prev) => {
+        useLibrary.getState().setSelectedTrackIds((prev) => {
           const next = new Set(prev)
           if (next.has(id)) next.delete(id)
           else next.add(id)
@@ -260,7 +259,9 @@ function TrackList(): React.JSX.Element {
         return
       }
       // 点在已选区域内则保留选区（便于整体拖动），否则重置为单选
-      setSelected((prev) => (prev.has(id) && prev.size > 1 ? prev : new Set([id])))
+      useLibrary
+        .getState()
+        .setSelectedTrackIds((prev) => (prev.has(id) && prev.size > 1 ? prev : new Set([id])))
       anchorRef.current = index
     },
     [sortedIds]
@@ -298,7 +299,7 @@ function TrackList(): React.JSX.Element {
                 label: `从歌单中移除${suffix}`,
                 onClick: () => {
                   useLibrary.getState().removeTracksFromPlaylist(lib.view, targets)
-                  setSelected(new Set())
+                  useLibrary.getState().setSelectedTrackIds(new Set())
                 }
               }
             ]
@@ -320,7 +321,7 @@ function TrackList(): React.JSX.Element {
               onConfirm: () => {
                 useLibrary.getState().deleteTracksFromLibrary(targets)
                 for (const id of targets) usePlayer.getState().removeFromQueue(id)
-                setSelected(new Set())
+                useLibrary.getState().setSelectedTrackIds(new Set())
               }
             })
         }

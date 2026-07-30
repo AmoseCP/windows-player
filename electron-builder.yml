@@ -11,7 +11,9 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
-# 双击音频文件可用本播放器打开
+# 双击音频文件可用本播放器打开。
+# 不注册 .mp4：虽然本应用能按纯音频播放它，但默认抢占视频文件不符合用户预期，
+# 需要时通过「打开方式」选择本播放器即可。
 fileAssociations:
   - ext: [mp3, flac, wav, ogg, aac, m4a, wma]
     name: 音频文件
