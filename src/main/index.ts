@@ -14,7 +14,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
-import { flushSaveSync } from './store'
+import { flushSaveSync, hasPendingSave } from './store'
 import { registerLocalFileSchemes, registerLocalFileProtocol } from './localfile'
 
 // localfile:// 协议供渲染进程流式播放本地音频文件（需在 app ready 前注册特权）
@@ -22,7 +22,55 @@ registerLocalFileSchemes()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let loginWindow: BrowserWindow | null = null
 let isQuitting = false // 仅托盘「退出」/系统退出时为 true；普通关闭 = 隐藏到托盘
+
+// 兜底日志：主进程未捕获异常不静默消失，便于定位线上问题
+process.on('uncaughtException', (err) => console.error('主进程未捕获异常:', err))
+process.on('unhandledRejection', (reason) => console.error('主进程未处理的 rejection:', reason))
+
+// YouTube 相关内容（webview 标签、登录窗口、独立播放窗口）统一使用此分区：
+// 与主窗口的 defaultSession 隔离（localfile 协议读不到），彼此之间共享登录 cookie
+const YOUTUBE_PARTITION = 'persist:youtube'
+
+/** 只允许 http(s) 交给系统打开，避免 file://、ms-msdt: 等被 shell 执行 */
+function openExternalSafely(url: string): void {
+  try {
+    if (/^https?:$/.test(new URL(url).protocol)) void shell.openExternal(url)
+  } catch {
+    // 非法 URL，忽略
+  }
+}
+
+function isYouTubeUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^(www|m|music)\./, '')
+    return (
+      host === 'youtube.com' ||
+      host === 'youtu.be' ||
+      host === 'google.com' ||
+      host === 'accounts.google.com'
+    )
+  } catch {
+    return false
+  }
+}
+
+/** YouTube 系窗口的统一加固：限制站内导航、弹窗交给系统浏览器 */
+function hardenYouTubeWindow(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler((details) => {
+    // 登录流程需要弹窗，放行 Google/YouTube 域，其余交给系统浏览器
+    if (isYouTubeUrl(details.url)) return { action: 'allow' }
+    openExternalSafely(details.url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!isYouTubeUrl(url)) {
+      e.preventDefault()
+      openExternalSafely(url)
+    }
+  })
+}
 
 const NORMAL_MIN = { width: 960, height: 640 }
 const MINI_SIZE = { width: 240, height: 56 }
@@ -70,12 +118,25 @@ function createWindow(): void {
   })
 
   mainWindow.on('closed', () => {
+    stopMiniHoverWatch()
     mainWindow = null
   })
 
+  // 隐藏到托盘后无需再轮询光标位置
+  mainWindow.on('hide', () => stopMiniHoverWatch())
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    openExternalSafely(details.url)
     return { action: 'deny' }
+  })
+
+  // 强制 webview 使用隔离分区且禁用 Node/preload：localfile 协议只注册在
+  // defaultSession，隔离后远程页面无法通过该协议读取本地文件
+  mainWindow.webContents.on('will-attach-webview', (_e, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    params.partition = YOUTUBE_PARTITION
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -171,11 +232,14 @@ app.whenReady().then(() => {
     app.dock?.setIcon(nativeImage.createFromPath(icon))
   }
 
+  // 只在主窗口所用的 defaultSession 注册，YouTube 分区无法访问本地文件
   registerLocalFileProtocol()
+
+  const youtubeSession = session.fromPartition(YOUTUBE_PARTITION)
 
   // 打包后页面为 file:// 加载，请求不带 Referer，YouTube 嵌入播放器会报
   // Error 153（强制要求有效 Referer）；给嵌入端点补上
-  session.defaultSession.webRequest.onBeforeSendHeaders(
+  youtubeSession.webRequest.onBeforeSendHeaders(
     { urls: ['https://www.youtube.com/embed/*'] },
     (details, callback) => {
       details.requestHeaders['Referer'] = 'https://www.youtube.com/'
@@ -183,38 +247,49 @@ app.whenReady().then(() => {
     }
   )
 
+  // 默认拒绝所有权限请求（通知/摄像头/麦克风/定位等）。Electron 默认是放行，
+  // webview 里的远程页面可静默取得权限
+  for (const s of [session.defaultSession, youtubeSession]) {
+    s.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+    s.setPermissionCheckHandler(() => false)
+  }
+
   registerIpcHandlers()
 
   ipcMain.on('window:setMini', (_e, mini: boolean) => setMiniMode(mini))
 
-  // YouTube 登录窗口：与主窗口共享默认会话，登录后嵌入播放器随 Premium 免广告
+  // YouTube 登录窗口：与在线播放共用 YouTube 分区，登录一次全部生效（Premium 免广告）
   ipcMain.on('youtube:openLogin', () => {
-    const loginWin = new BrowserWindow({
+    if (loginWindow && !loginWindow.isDestroyed()) {
+      loginWindow.focus() // 单例，避免连点开出多个渲染进程
+      return
+    }
+    loginWindow = new BrowserWindow({
       width: 520,
       height: 720,
       autoHideMenuBar: true,
-      title: '登录 YouTube'
+      title: '登录 YouTube',
+      webPreferences: { partition: YOUTUBE_PARTITION, sandbox: true, contextIsolation: true }
     })
-    loginWin.loadURL('https://www.youtube.com')
+    hardenYouTubeWindow(loginWindow)
+    loginWindow.on('closed', () => {
+      loginWindow = null
+    })
+    void loginWindow.loadURL('https://www.youtube.com')
   })
 
-  // 完整站点播放窗口：版权方禁止嵌入的视频、电台混播（list=RD*）都能播，
-  // 共享默认会话，Premium 免广告同样生效
+  // 完整站点播放窗口：版权方禁止嵌入的视频、电台混播（list=RD*）都能播
   ipcMain.on('youtube:openWindow', (_e, url: string) => {
-    try {
-      const u = new URL(url)
-      const host = u.hostname.replace(/^(www|m|music)\./, '')
-      if (host !== 'youtube.com' && host !== 'youtu.be') return
-    } catch {
-      return
-    }
+    if (typeof url !== 'string' || !isYouTubeUrl(url)) return
     const win = new BrowserWindow({
       width: 1080,
       height: 720,
       autoHideMenuBar: true,
-      title: 'YouTube 播放'
+      title: 'YouTube 播放',
+      webPreferences: { partition: YOUTUBE_PARTITION, sandbox: true, contextIsolation: true }
     })
-    win.loadURL(url)
+    hardenYouTubeWindow(win)
+    void win.loadURL(url)
   })
 
   // 自绘标题栏的窗口控制（close 走 close 事件 → 隐藏到托盘）
@@ -254,10 +329,16 @@ app.whenReady().then(() => {
   })
 })
 
-// 退出前强制落盘未保存数据
-app.on('before-quit', () => {
+// 退出前强制落盘未保存数据；若仍有异步写入在飞，稍等一轮再退出
+let quitDeferred = false
+app.on('before-quit', (e) => {
   isQuitting = true
   flushSaveSync()
+  if (hasPendingSave() && !quitDeferred) {
+    quitDeferred = true
+    e.preventDefault()
+    setTimeout(() => app.quit(), 300)
+  }
 })
 
 app.on('will-quit', () => {

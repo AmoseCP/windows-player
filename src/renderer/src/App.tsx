@@ -41,7 +41,6 @@ function App(): React.JSX.Element {
   const sidebarCollapsed = useLibrary((s) => s.sidebarCollapsed)
   const [resizing, setResizing] = useState(false)
   const [dragLabel, setDragLabel] = useState<string | null>(null)
-  const dragging = useRef(false)
   const importPaths = useLibrary((s) => s.importPaths)
   const notice = usePlayer((s) => s.notice)
   const miniMode = usePlayer((s) => s.miniMode)
@@ -64,7 +63,13 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     useLibrary.getState().init()
-    initPersistence()
+    initPersistence().then(() => {
+      // 启动后清理不再被引用的封面缓存（歌曲删除后残留的孤儿文件）
+      const used = Object.values(useLibrary.getState().tracks)
+        .map((t) => t.coverFile)
+        .filter((f): f is string => !!f)
+      void window.api.gcCovers(used)
+    })
     // 窗口关闭（隐藏到托盘）时立即停止本地与在线播放
     return window.api.onPlayerStop(() => {
       usePlayer.setState({ playing: false, showOnline: false })
@@ -111,9 +116,9 @@ function App(): React.JSX.Element {
         return
       }
       const overData = e.over.data.current as DragData | undefined
-      // 歌单内重排；搜索过滤时索引与 trackIds 不对应，禁用
+      // 歌单内重排；搜索过滤时顺序不完整，禁用
       if (overData?.type === 'track' && lib.view !== 'library' && lib.search.trim() === '') {
-        lib.reorderPlaylist(lib.view, data.index, overData.index)
+        lib.reorderPlaylist(lib.view, data.trackId, overData.trackId)
       }
       return
     }
@@ -128,25 +133,27 @@ function App(): React.JSX.Element {
     }
   }
 
-  // 拖动分隔条调整侧栏宽度
+  // 拖动分隔条调整侧栏宽度；用 AbortController 保证组件卸载时监听必被移除
+  const resizeAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => resizeAbort.current?.abort(), [])
+
   const startResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    dragging.current = true
+    resizeAbort.current?.abort()
+    const ac = new AbortController()
+    resizeAbort.current = ac
     setResizing(true)
     const onMove = (ev: MouseEvent): void => {
-      if (!dragging.current) return
       useLibrary
         .getState()
         .setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, ev.clientX)))
     }
     const onUp = (): void => {
-      dragging.current = false
       setResizing(false)
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      ac.abort()
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove, { signal: ac.signal })
+    window.addEventListener('mouseup', onUp, { signal: ac.signal })
   }, [])
 
   // 迷你模式：只渲染迷你播放条
@@ -185,9 +192,7 @@ function App(): React.JSX.Element {
             </>
           )}
           <main className="main-area">
-            <div className="main-scroll">
-              <TrackList />
-            </div>
+            <TrackList />
             {showLyrics && <LyricsPanel />}
             {showOnline && <OnlinePlayer />}
           </main>

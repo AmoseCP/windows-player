@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, net } from 'electron'
+import { app, ipcMain, dialog, net, shell } from 'electron'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { parseFile } from 'music-metadata'
@@ -36,6 +36,32 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:coversDir', () => coversDir())
 
   ipcMain.handle('app:version', () => app.getVersion())
+
+  ipcMain.handle('app:platform', () => process.platform)
+
+  // 在系统文件管理器中定位歌曲文件
+  ipcMain.handle('shell:reveal', (_e, filePath: string) => {
+    if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath)
+  })
+
+  // 清理不再被任何曲目引用的封面缓存（封面按内容 hash 共享，需整体做引用计数）
+  ipcMain.handle('covers:gc', async (_e, usedFiles: string[]) => {
+    try {
+      const used = new Set(Array.isArray(usedFiles) ? usedFiles : [])
+      const dir = coversDir()
+      const files = await fs.readdir(dir).catch(() => [] as string[])
+      let removed = 0
+      for (const f of files) {
+        if (!used.has(f)) {
+          await fs.rm(path.join(dir, f), { force: true })
+          removed++
+        }
+      }
+      return removed
+    } catch {
+      return 0
+    }
+  })
 
   ipcMain.handle('youtube:search', async (_e, query: string) => {
     try {
@@ -83,12 +109,16 @@ export function registerIpcHandlers(): void {
     const src = filePaths[0]
     const dir = path.join(app.getPath('userData'), 'theme')
     await fs.mkdir(dir, { recursive: true })
-    // 清掉旧背景，避免不同扩展名残留
-    for (const f of await fs.readdir(dir)) {
-      if (f.startsWith('background.')) await fs.rm(path.join(dir, f), { force: true })
-    }
     const dest = path.join(dir, 'background' + path.extname(src).toLowerCase())
-    await fs.copyFile(src, dest)
+    // 先复制到临时文件，成功后才替换旧背景 —— 否则复制失败会让用户既丢背景又没新图
+    const tmp = dest + '.tmp'
+    await fs.copyFile(src, tmp)
+    for (const f of await fs.readdir(dir)) {
+      if (f.startsWith('background.') && f !== path.basename(tmp)) {
+        await fs.rm(path.join(dir, f), { force: true })
+      }
+    }
+    await fs.rename(tmp, dest)
     return dest
   })
 

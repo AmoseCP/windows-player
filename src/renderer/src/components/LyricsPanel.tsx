@@ -17,24 +17,32 @@ function Visualizer(): React.JSX.Element {
     if (!canvas) return
     const analyser = getAnalyser()
     const data = new Uint8Array(analyser.frequencyBinCount)
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = canvas.clientWidth * dpr
-    canvas.height = canvas.clientHeight * dpr
     const c = canvas.getContext('2d')
     if (!c) return
-    // 跟随当前主题强调色
-    const accent =
-      getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f8cff'
-    const gradient = c.createLinearGradient(0, 0, 0, canvas.height)
-    gradient.addColorStop(0, accent)
-    gradient.addColorStop(1, accent + '66')
-    c.fillStyle = gradient
+    const dpr = window.devicePixelRatio || 1
+
+    // 画布尺寸随窗口/侧栏变化重新测量，否则拉伸后条形会模糊变形
+    let gradient: CanvasGradient | null = null
+    const resize = (): void => {
+      canvas.width = Math.max(1, canvas.clientWidth * dpr)
+      canvas.height = Math.max(1, canvas.clientHeight * dpr)
+      // 跟随当前主题强调色
+      const accent =
+        getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f8cff'
+      gradient = c.createLinearGradient(0, 0, 0, canvas.height)
+      gradient.addColorStop(0, accent)
+      gradient.addColorStop(1, accent + '66')
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(canvas)
 
     let raf = 0
     const draw = (): void => {
       analyser.getByteFrequencyData(data)
       const { width, height } = canvas
       c.clearRect(0, 0, width, height)
+      if (gradient) c.fillStyle = gradient
       const slot = width / BAR_COUNT
       const barW = slot * 0.55
       for (let i = 0; i < BAR_COUNT; i++) {
@@ -49,7 +57,10 @@ function Visualizer(): React.JSX.Element {
       raf = requestAnimationFrame(draw)
     }
     draw()
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
   return <canvas ref={canvasRef} className="lyrics-visualizer" />

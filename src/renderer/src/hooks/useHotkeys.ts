@@ -1,7 +1,10 @@
 import { useEffect } from 'react'
 import { usePlayer } from '../store/player'
 
-/** 空格 = 播放/暂停，Ctrl+→ = 下一首，Ctrl+← = 上一首；系统媒体键走同样的动作 */
+/**
+ * 空格 = 播放/暂停，Ctrl/Cmd+→ = 下一首，Ctrl/Cmd+← = 上一首；
+ * 系统媒体键走同样的动作。在线播放期间全部禁用，避免与在线音频叠音。
+ */
 export function useHotkeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -13,11 +16,13 @@ export function useHotkeys(): void {
       if (player.showOnline) return // 在线播放期间禁用本地播放快捷键
       if (e.code === 'Space') {
         e.preventDefault()
+        if (e.repeat) return // 长按空格不连发播放/暂停
         player.togglePlay()
-      } else if (e.ctrlKey && e.key === 'ArrowRight') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        // macOS 上 Ctrl+方向键被系统占用，同时接受 Cmd
         e.preventDefault()
         player.next(false)
-      } else if (e.ctrlKey && e.key === 'ArrowLeft') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
         e.preventDefault()
         player.prev()
       }

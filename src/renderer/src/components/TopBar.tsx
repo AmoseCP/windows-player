@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLibrary } from '../store/library'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
@@ -14,14 +14,36 @@ function TopBar(): React.JSX.Element {
   const [showAbout, setShowAbout] = useState(false)
   const importing = progress !== null
 
-  const importFiles = async (): Promise<void> => importPaths(await window.api.pickFiles())
-  const importFolder = async (): Promise<void> => importPaths(await window.api.pickFolder())
+  // 无边框窗口只在 Windows/Linux 需要自绘标题栏按钮
+  const [isMac, setIsMac] = useState(true)
+  useEffect(() => {
+    window.api.getPlatform().then((p) => setIsMac(p === 'darwin'))
+  }, [])
+
+  const importFiles = async (): Promise<void> => {
+    try {
+      await importPaths(await window.api.pickFiles())
+    } catch {
+      usePlayer.getState().showNotice('导入失败，请重试')
+    }
+  }
+  const importFolder = async (): Promise<void> => {
+    try {
+      await importPaths(await window.api.pickFolder())
+    } catch {
+      usePlayer.getState().showNotice('导入失败，请重试')
+    }
+  }
 
   const uploadTheme = async (): Promise<void> => {
-    const path = await window.api.pickThemeImage()
-    if (path) {
-      useLibrary.getState().setThemeImage(path)
-      usePlayer.getState().showNotice('已应用自定义背景')
+    try {
+      const path = await window.api.pickThemeImage()
+      if (path) {
+        useLibrary.getState().setThemeImage(path)
+        usePlayer.getState().showNotice('已应用自定义背景')
+      }
+    } catch {
+      usePlayer.getState().showNotice('背景图片应用失败')
     }
   }
 
@@ -92,7 +114,7 @@ function TopBar(): React.JSX.Element {
           关于
         </button>
       </div>
-      {window.electron.process.platform !== 'darwin' && (
+      {!isMac && (
         <div className="win-controls">
           <button
             className="win-btn"

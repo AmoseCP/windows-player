@@ -1136,6 +1136,42 @@ input {
   background: var(--bg-active);
 }
 
+/* 错误边界兜底界面 */
+.crash-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.crash-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.crash-detail {
+  color: var(--text-secondary);
+  font-size: 13px;
+  max-width: 520px;
+  user-select: text;
+  word-break: break-word;
+}
+
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.crash-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* 短暂提示（播放错误等） */
 .toast {
   position: fixed;

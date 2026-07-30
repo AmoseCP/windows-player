@@ -57,7 +57,7 @@ interface LibraryState {
   addTrackToPlaylist: (playlistId: string, trackId: string) => boolean
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void
   deleteTrackFromLibrary: (trackId: string) => void
-  reorderPlaylist: (playlistId: string, fromIndex: number, toIndex: number) => void
+  reorderPlaylist: (playlistId: string, fromTrackId: string, toTrackId: string) => void
   movePlaylist: (playlistId: string, folderId: string | null) => void
 }
 
@@ -295,13 +295,17 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       }
     }),
 
-  reorderPlaylist: (playlistId, fromIndex, toIndex) =>
+  // 按 trackId 定位而非显示下标：列表会过滤掉失效引用，下标可能与 trackIds 不对齐
+  reorderPlaylist: (playlistId, fromTrackId, toTrackId) =>
     set((s) => {
       const p = s.playlists[playlistId]
-      if (!p || fromIndex === toIndex) return s
+      if (!p || fromTrackId === toTrackId) return s
+      const from = p.trackIds.indexOf(fromTrackId)
+      const to = p.trackIds.indexOf(toTrackId)
+      if (from < 0 || to < 0) return s
       const trackIds = [...p.trackIds]
-      const [moved] = trackIds.splice(fromIndex, 1)
-      trackIds.splice(toIndex, 0, moved)
+      const [moved] = trackIds.splice(from, 1)
+      trackIds.splice(to, 0, moved)
       return { playlists: { ...s.playlists, [playlistId]: { ...p, trackIds } } }
     }),
 

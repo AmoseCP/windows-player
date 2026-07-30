@@ -61,6 +61,8 @@ function PlayerBar(): React.JSX.Element {
       setDragTime(null)
     }
   }
+  // 指针捕获被系统取消（切窗口、触控中断）时复位，否则进度显示会冻结在拖动位置
+  const onProgressPointerCancel = (): void => setDragTime(null)
 
   const shownTime = dragTime ?? currentTime
   const progressPct = duration > 0 ? (shownTime / duration) * 100 : 0
@@ -104,6 +106,7 @@ function PlayerBar(): React.JSX.Element {
                 onPointerDown={onProgressPointerDown}
                 onPointerMove={onProgressPointerMove}
                 onPointerUp={onProgressPointerUp}
+                onPointerCancel={onProgressPointerCancel}
               >
                 <div className="progress-fill" style={{ width: `${progressPct}%` }} />
               </div>

@@ -1,13 +1,17 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../shared/types'
 
-// 渲染进程可用的白名单 API
+// 渲染进程可用的白名单 API。
+// 注意：不再暴露 @electron-toolkit/preload 的 electronAPI —— 它包含任意 channel 的
+// ipcRenderer 与完整 process.env，会让此处的白名单形同虚设。
 const api = {
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFiles'),
   pickFolder: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickFolder'),
   getCoversDir: (): Promise<string> => ipcRenderer.invoke('app:coversDir'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  getPlatform: (): Promise<string> => ipcRenderer.invoke('app:platform'),
+  revealInFolder: (path: string): Promise<void> => ipcRenderer.invoke('shell:reveal', path),
+  gcCovers: (usedFiles: string[]): Promise<number> => ipcRenderer.invoke('covers:gc', usedFiles),
   checkExists: (path: string): Promise<boolean> => ipcRenderer.invoke('track:checkExists', path),
   loadData: (): Promise<AppData | null> => ipcRenderer.invoke('data:load'),
   saveData: (data: AppData): void => ipcRenderer.send('data:save', data),
@@ -49,19 +53,13 @@ const api = {
   }
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
 }

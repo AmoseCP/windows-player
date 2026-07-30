@@ -9,7 +9,11 @@ import type { YouTubeSearchResult } from '../shared/types'
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
   const res = await fetch(
     'https://www.youtube.com/results?search_query=' + encodeURIComponent(query),
-    { headers: { 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' } }
+    {
+      headers: { 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' },
+      // 无超时会导致服务器不响应时搜索状态永久卡住、按钮永久禁用
+      signal: AbortSignal.timeout(12000)
+    }
   )
   if (!res.ok) return []
   const html = await res.text()

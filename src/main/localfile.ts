@@ -1,5 +1,6 @@
 import { protocol } from 'electron'
 import { createReadStream, promises as fs } from 'fs'
+import { extname } from 'path'
 import { Readable } from 'stream'
 
 /** 必须在 app ready 前调用：注册 localfile:// 为特权协议（流式 + fetch 可用） */
@@ -22,6 +23,27 @@ function toWebStream(filePath: string, start?: number, end?: number): ReadableSt
   return Readable.toWeb(
     createReadStream(filePath, start !== undefined ? { start, end } : undefined)
   ) as unknown as ReadableStream
+}
+
+const MIME: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.aac': 'audio/aac',
+  '.m4a': 'audio/mp4',
+  '.mp4': 'audio/mp4',
+  '.wma': 'audio/x-ms-wma',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp'
+}
+
+function mimeFor(filePath: string): string {
+  return MIME[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
 }
 
 /**
@@ -59,9 +81,11 @@ export function registerLocalFileProtocol(): void {
           status: 206,
           headers: {
             'Accept-Ranges': 'bytes',
+            'Content-Type': mimeFor(filePath),
             'Content-Range': `bytes ${start}-${end}/${stat.size}`,
             'Content-Length': String(end - start + 1),
-            // 允许 Web Audio 分析器读取音频数据（audio 元素以 crossOrigin 模式加载）
+            // 允许 Web Audio 分析器读取音频数据（audio 元素以 crossOrigin 模式加载）。
+            // 该协议只注册在主窗口的 defaultSession，YouTube 内容在独立分区，读不到本地文件
             'Access-Control-Allow-Origin': '*'
           }
         })
@@ -71,6 +95,7 @@ export function registerLocalFileProtocol(): void {
         status: 200,
         headers: {
           'Accept-Ranges': 'bytes',
+          'Content-Type': mimeFor(filePath),
           'Content-Length': String(stat.size),
           'Access-Control-Allow-Origin': '*'
         }

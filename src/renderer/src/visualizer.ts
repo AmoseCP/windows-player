@@ -1,7 +1,7 @@
 import { audio } from './hooks/useAudio'
 
 // MediaElementSource 每个媒体元素只能创建一次，全局单例；
-// 创建后音频永久经由此图输出，AudioContext 保持 running
+// 创建后音频永久经由此图输出，因此 AudioContext 必须保持 running
 let analyser: AnalyserNode | null = null
 let ctx: AudioContext | null = null
 
@@ -16,8 +16,13 @@ export function getAnalyser(): AnalyserNode {
     source.connect(analyser)
     analyser.connect(ctx.destination)
   }
-  if (ctx?.state === 'suspended') {
+  resumeAnalyserContext()
+  return analyser
+}
+
+/** 恢复被自动播放策略挂起的音频图；未创建时为空操作。每次播放都应调用。 */
+export function resumeAnalyserContext(): void {
+  if (ctx && ctx.state === 'suspended') {
     void ctx.resume()
   }
-  return analyser
 }

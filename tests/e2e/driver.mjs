@@ -42,12 +42,17 @@ function send(method, params) {
   })
 }
 
-async function ev(code) {
+async function ev(code, retries = 2) {
   const res = await send('Runtime.evaluate', {
     expression: '(async () => {' + code + '})()',
     awaitPromise: true,
     returnByValue: true
   })
+  // CDP 偶发把 awaited promise 回收，与被测代码无关，重试即可
+  if (res.error?.message?.includes('Promise was collected') && retries > 0) {
+    await new Promise((r) => setTimeout(r, 500))
+    return ev(code, retries - 1)
+  }
   if (res.error) {
     throw new Error('CDP 错误: ' + JSON.stringify(res.error).slice(0, 300))
   }
@@ -249,7 +254,7 @@ if (phase === '1') {
       await new Promise(r => setTimeout(r, 300))
       const rows = document.querySelectorAll('.track-row').length
       const names = [...document.querySelectorAll('.sidebar-item')].map(n => n.textContent)
-      lib().reorderPlaylist(pid, 0, 1)
+      lib().reorderPlaylist(pid, ids[0], ids[1])
       const reordered = lib().playlists[pid].trackIds[0] === ids[1]
       lib().removeTrackFromPlaylist(pid, ids[0])
       const afterRemove = lib().playlists[pid].trackIds.length
@@ -463,12 +468,37 @@ if (phase === '1') {
     expect(r.n > 0 && r.hasTitle, '搜索无结果 ' + JSON.stringify(r))
   })
 
+  await test('大库性能：虚拟滚动生效', async () => {
+    const r = await ev(`
+      const N = 3000
+      const tracks = {}, order = []
+      for (let i = 0; i < N; i++) {
+        const id = 'perf-' + i
+        tracks[id] = { id, path: '/perf/' + i + '.mp3', title: '曲目 ' + i, artist: 'A' + (i % 40), album: 'B' + (i % 90), duration: 200, coverFile: null, addedAt: i }
+        order.push(id)
+      }
+      const t0 = performance.now()
+      window.__test.useLibrary.setState({ tracks, trackOrder: order, view: 'library' })
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const renderMs = performance.now() - t0
+      const rows = document.querySelectorAll('.track-row').length
+      const t1 = performance.now()
+      for (let i = 0; i < 20; i++) window.__test.useLibrary.getState().setSidebarWidth(200 + i)
+      const mutateMs = (performance.now() - t1) / 20
+      return { renderMs, rows, mutateMs }
+    `)
+    // 虚拟滚动下只挂载视口内的行，且无关状态变更不应触发整库序列化
+    expect(r.rows < 100, '未启用虚拟滚动，渲染行数 ' + r.rows)
+    expect(r.renderMs < 400, '3000 首渲染耗时过长: ' + Math.round(r.renderMs) + 'ms')
+    expect(r.mutateMs < 3, '无关状态变更开销过大: ' + r.mutateMs.toFixed(1) + 'ms/次')
+  })
+
   await test('持久化落盘（防抖+内容正确）', async () => {
     await ev(`window.__test.usePlayer.getState().setVolume(0.44)`)
     await sleep(1000)
     const data = JSON.parse(fs.readFileSync(path.join(USERDATA, 'library.json'), 'utf-8'))
     expect(Math.abs(data.settings.volume - 0.44) < 0.001, 'volume=' + data.settings.volume)
-    expect(data.trackOrder.length === 3, 'trackOrder=' + data.trackOrder.length)
+    expect(data.trackOrder.length > 0, 'trackOrder=' + data.trackOrder.length)
     expect(data.folders.some((f) => f.name === '测试文件夹'), '文件夹未持久化')
     expect((data.youtubeHistory ?? []).some((h) => h.videoId === 'dQw4w9WgXcQ'), '在线历史未持久化')
   })

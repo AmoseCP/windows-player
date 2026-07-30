@@ -1,4 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
 import type { AppData, Track, ImportProgress, YouTubeSearchResult } from '../shared/types'
 
 interface Api {
@@ -6,13 +5,15 @@ interface Api {
   pickFolder(): Promise<string[]>
   getCoversDir(): Promise<string>
   getAppVersion(): Promise<string>
+  getPlatform(): Promise<string>
+  revealInFolder(path: string): Promise<void>
+  gcCovers(usedFiles: string[]): Promise<number>
   checkExists(path: string): Promise<boolean>
   loadData(): Promise<AppData | null>
   saveData(data: AppData): void
   importPaths(paths: string[], existingPaths: string[]): Promise<Track[]>
   onImportProgress(cb: (p: ImportProgress) => void): () => void
   getPathForFile(file: File): string
-  onMediaKey(cb: (action: string) => void): () => void
   setMiniWindow(mini: boolean): void
   windowControl(action: 'minimize' | 'toggleMaximize' | 'close'): void
   openYouTubeLogin(): void
@@ -23,11 +24,11 @@ interface Api {
   onMiniHover(cb: (hovered: boolean) => void): () => void
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>
+  onMediaKey(cb: (action: string) => void): () => void
 }
 
 declare global {
   interface Window {
-    electron: ElectronAPI
     api: Api
   }
 }

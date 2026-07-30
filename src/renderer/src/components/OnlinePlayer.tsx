@@ -29,29 +29,36 @@ interface WebviewElement extends HTMLElement {
 /** 单个标签的 webview：src 只在挂载时设置，导航/标题变化回写 store */
 function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JSX.Element {
   const ref = useRef<WebviewElement | null>(null)
-  // webview 的 src 属性变化会触发重新加载，因此只用创建时的地址
-  const [initialSrc] = useState(tab.url)
+  // webview 的 src 属性变化会触发重新加载，因此只在挂载时取一次；
+  // 用 currentUrl 以便重开面板后回到标签内实际浏览到的位置
+  const [initialSrc] = useState(tab.currentUrl || tab.url)
   const volume = usePlayer((s) => s.volume)
   const muted = usePlayer((s) => s.muted)
 
-  // 播放栏的音量/静音同步到在线标签：静音用原生 API，音量注入页面设置媒体元素
+  // 播放栏的音量/静音同步到在线标签：静音用原生 API，音量注入页面设置媒体元素。
+  // 非当前标签一律静音，避免多个标签同时出声
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const apply = (): void => {
       try {
-        el.setAudioMuted?.(muted)
+        el.setAudioMuted?.(muted || !active)
         el.executeJavaScript?.(
           `document.querySelectorAll('video,audio').forEach(m => { m.volume = ${volume} })`
         )?.catch(() => {})
       } catch {
-        // webview 尚未挂载完成，等 did-finish-load 再应用
+        // webview 尚未挂载完成，等加载/导航事件再应用
       }
     }
     apply()
     el.addEventListener('did-finish-load', apply)
-    return () => el.removeEventListener('did-finish-load', apply)
-  }, [volume, muted])
+    // YouTube 是单页应用，站内跳转不触发 did-finish-load，新的 video 元素音量会回到 100%
+    el.addEventListener('did-navigate-in-page', apply)
+    return () => {
+      el.removeEventListener('did-finish-load', apply)
+      el.removeEventListener('did-navigate-in-page', apply)
+    }
+  }, [volume, muted, active])
 
   useEffect(() => {
     const el = ref.current
