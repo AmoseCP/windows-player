@@ -5,6 +5,13 @@ export type { PlayMode }
 
 export const PLAY_MODE_ORDER: PlayMode[] = ['order', 'loop', 'single', 'shuffle']
 
+export interface OnlineTab {
+  id: string
+  url: string // 创建时的地址（webview 初始 src，不随导航变化）
+  currentUrl: string // 页内导航后的当前地址
+  title: string
+}
+
 interface PlayerState {
   queue: string[] // 播放队列 = 双击时所在视图的曲目 id 列表
   queueIndex: number // -1 = 未在播放
@@ -18,6 +25,8 @@ interface PlayerState {
   miniMode: boolean // 迷你播放器模式
   showLyrics: boolean // 歌词面板
   showOnline: boolean // 在线播放（YouTube）面板
+  onlineTabs: OnlineTab[] // 在线播放的多标签页
+  activeTabId: string | null
 
   startQueue: (queue: string[], index: number) => void
   togglePlay: () => void
@@ -32,6 +41,10 @@ interface PlayerState {
   setMini: (mini: boolean) => void
   toggleLyrics: () => void
   toggleOnline: () => void
+  openOnlineTab: (url: string, title?: string) => void
+  closeOnlineTab: (id: string) => void
+  setActiveOnlineTab: (id: string) => void
+  updateOnlineTab: (id: string, patch: Partial<Pick<OnlineTab, 'currentUrl' | 'title'>>) => void
 }
 
 export function currentTrackId(s: Pick<PlayerState, 'queue' | 'queueIndex'>): string | null {
@@ -53,6 +66,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   miniMode: false,
   showLyrics: false,
   showOnline: false,
+  onlineTabs: [],
+  activeTabId: null,
 
   startQueue: (queue, index) =>
     set((s) => ({
@@ -140,6 +155,30 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   toggleLyrics: () => set((s) => ({ showLyrics: !s.showLyrics })),
 
   toggleOnline: () => set((s) => ({ showOnline: !s.showOnline })),
+
+  openOnlineTab: (url, title) => {
+    const tab: OnlineTab = { id: crypto.randomUUID(), url, currentUrl: url, title: title ?? url }
+    set((s) => ({ onlineTabs: [...s.onlineTabs, tab], activeTabId: tab.id }))
+  },
+
+  closeOnlineTab: (id) =>
+    set((s) => {
+      const idx = s.onlineTabs.findIndex((t) => t.id === id)
+      const onlineTabs = s.onlineTabs.filter((t) => t.id !== id)
+      let activeTabId = s.activeTabId
+      if (activeTabId === id) {
+        // 关闭当前标签：激活相邻标签
+        activeTabId = onlineTabs[Math.min(idx, onlineTabs.length - 1)]?.id ?? null
+      }
+      return { onlineTabs, activeTabId }
+    }),
+
+  setActiveOnlineTab: (id) => set({ activeTabId: id }),
+
+  updateOnlineTab: (id, patch) =>
+    set((s) => ({
+      onlineTabs: s.onlineTabs.map((t) => (t.id === id ? { ...t, ...patch } : t))
+    })),
 
   // 歌曲被从音乐库删除时同步清理播放队列
   removeFromQueue: (trackId) => {

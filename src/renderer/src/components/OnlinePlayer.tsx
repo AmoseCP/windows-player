@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePlayer } from '../store/player'
+import type { OnlineTab } from '../store/player'
 import { useLibrary } from '../store/library'
 import { parseYouTubeUrl } from '../utils'
 import type { YouTubeRef } from '../utils'
@@ -14,19 +15,66 @@ function formatPlayedAt(t: number): string {
   })
 }
 
-/** 在线播放面板：粘贴链接直接播放、输入关键词搜索 YouTube，播放记录按时间排列 */
+interface WebviewEvent extends Event {
+  url?: string
+  title?: string
+  isMainFrame?: boolean
+}
+
+/** 单个标签的 webview：src 只在挂载时设置，导航/标题变化回写 store */
+function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JSX.Element {
+  const ref = useRef<HTMLElement | null>(null)
+  // webview 的 src 属性变化会触发重新加载，因此只用创建时的地址
+  const [initialSrc] = useState(tab.url)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const onTitle = (e: Event): void => {
+      const title = (e as WebviewEvent).title
+      if (title) usePlayer.getState().updateOnlineTab(tab.id, { title })
+    }
+    const onNav = (e: Event): void => {
+      const ev = e as WebviewEvent
+      if (ev.url && ev.isMainFrame !== false) {
+        usePlayer.getState().updateOnlineTab(tab.id, { currentUrl: ev.url })
+      }
+    }
+    el.addEventListener('page-title-updated', onTitle)
+    el.addEventListener('did-navigate', onNav)
+    el.addEventListener('did-navigate-in-page', onNav)
+    return () => {
+      el.removeEventListener('page-title-updated', onTitle)
+      el.removeEventListener('did-navigate', onNav)
+      el.removeEventListener('did-navigate-in-page', onNav)
+    }
+  }, [tab.id])
+
+  return (
+    <webview
+      ref={(node) => {
+        ref.current = node
+      }}
+      className={`online-frame${active ? '' : ' inactive'}`}
+      src={initialSrc}
+    />
+  )
+}
+
+/** 在线播放面板：多标签浏览 YouTube；粘贴链接/搜索/历史双击都会开新标签 */
 function OnlinePlayer(): React.JSX.Element {
   const [input, setInput] = useState('')
-  // 当前播放的原始链接：webview 加载完整观看页，不受嵌入限制
-  const [currentUrl, setCurrentUrl] = useState('')
   const [results, setResults] = useState<YouTubeSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchFailed, setSearchFailed] = useState(false)
   const history = useLibrary((s) => s.youtubeHistory)
+  const tabs = usePlayer((s) => s.onlineTabs)
+  const activeTabId = usePlayer((s) => s.activeTabId)
   const inputIsUrl = parseYouTubeUrl(input) !== null
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
   const startPlay = (ref: YouTubeRef, url: string, knownTitle?: string): void => {
-    setCurrentUrl(url)
+    usePlayer.getState().openOnlineTab(url, knownTitle)
     // 开始在线播放时暂停本地播放，避免两路声音
     usePlayer.setState({ playing: false })
     useLibrary.getState().addYouTubeHistory({
@@ -91,11 +139,11 @@ function OnlinePlayer(): React.JSX.Element {
         <button className="btn" onClick={submit} disabled={searching}>
           {searching ? '搜索中…' : inputIsUrl ? '播放' : '搜索'}
         </button>
-        {currentUrl && (
+        {activeTab && (
           <button
             className="btn"
-            title="在独立的大窗口中播放当前内容"
-            onClick={() => window.api.openYouTubeWindow(currentUrl)}
+            title="在独立的大窗口中播放当前标签内容"
+            onClick={() => window.api.openYouTubeWindow(activeTab.currentUrl || activeTab.url)}
           >
             在窗口中打开
           </button>
@@ -115,14 +163,44 @@ function OnlinePlayer(): React.JSX.Element {
           ✕
         </button>
       </div>
+      <div className="online-tabs">
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            className={`online-tab${tab.id === activeTabId ? ' active' : ''}`}
+            title={tab.currentUrl || tab.url}
+            onClick={() => usePlayer.getState().setActiveOnlineTab(tab.id)}
+          >
+            <span className="online-tab-title">{tab.title}</span>
+            <button
+              className="online-tab-close"
+              title="关闭标签"
+              onClick={(e) => {
+                e.stopPropagation()
+                usePlayer.getState().closeOnlineTab(tab.id)
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          className="online-tab-add"
+          title="新建标签（打开 YouTube 首页）"
+          onClick={() => usePlayer.getState().openOnlineTab('https://www.youtube.com', 'YouTube')}
+        >
+          ＋
+        </button>
+      </div>
       <div className="online-body">
-        {currentUrl ? (
-          <webview className="online-frame" src={currentUrl} />
+        {tabs.length > 0 ? (
+          tabs.map((tab) => <TabView key={tab.id} tab={tab} active={tab.id === activeTabId} />)
         ) : (
           <div className="online-hint">
             <div>粘贴 YouTube 链接直接播放，或输入关键词搜索</div>
             <div className="online-hint-sub">
-              需要联网；关闭此面板即停止播放。「登录 YouTube」后 Premium 会员免广告。
+              需要联网；每次播放会打开一个新标签，「＋」可新建标签自由浏览。 「登录 YouTube」后
+              Premium 会员免广告。
             </div>
           </div>
         )}
