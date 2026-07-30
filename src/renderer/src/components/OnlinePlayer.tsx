@@ -21,11 +21,37 @@ interface WebviewEvent extends Event {
   isMainFrame?: boolean
 }
 
+interface WebviewElement extends HTMLElement {
+  setAudioMuted?: (muted: boolean) => void
+  executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>
+}
+
 /** 单个标签的 webview：src 只在挂载时设置，导航/标题变化回写 store */
 function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JSX.Element {
-  const ref = useRef<HTMLElement | null>(null)
+  const ref = useRef<WebviewElement | null>(null)
   // webview 的 src 属性变化会触发重新加载，因此只用创建时的地址
   const [initialSrc] = useState(tab.url)
+  const volume = usePlayer((s) => s.volume)
+  const muted = usePlayer((s) => s.muted)
+
+  // 播放栏的音量/静音同步到在线标签：静音用原生 API，音量注入页面设置媒体元素
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const apply = (): void => {
+      try {
+        el.setAudioMuted?.(muted)
+        el.executeJavaScript?.(
+          `document.querySelectorAll('video,audio').forEach(m => { m.volume = ${volume} })`
+        )?.catch(() => {})
+      } catch {
+        // webview 尚未挂载完成，等 did-finish-load 再应用
+      }
+    }
+    apply()
+    el.addEventListener('did-finish-load', apply)
+    return () => el.removeEventListener('did-finish-load', apply)
+  }, [volume, muted])
 
   useEffect(() => {
     const el = ref.current
@@ -53,7 +79,7 @@ function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JS
   return (
     <webview
       ref={(node) => {
-        ref.current = node
+        ref.current = node as WebviewElement | null
       }}
       className={`online-frame${active ? '' : ' inactive'}`}
       src={initialSrc}

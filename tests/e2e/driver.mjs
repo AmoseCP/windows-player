@@ -437,6 +437,14 @@ if (phase === '1') {
     expect(src && src.includes('watch?v=dQw4w9WgXcQ'), 'webview 未加载: ' + src)
     const localPaused = await ev(`return window.__test.usePlayer.getState().playing === false`)
     expect(localPaused, '在线播放未暂停本地')
+    // 静音同步到 webview
+    await ev(`window.__test.usePlayer.getState().toggleMute()`)
+    await sleep(500)
+    const wvMuted = await ev(
+      `const w = document.querySelector('webview'); return w && w.isAudioMuted ? w.isAudioMuted() : null`
+    )
+    expect(wvMuted === true, '静音未同步到在线标签: ' + wvMuted)
+    await ev(`window.__test.usePlayer.getState().toggleMute()`)
     const hidden = await ev(
       `return !document.querySelector('.playerbar button[title="播放/暂停"]') && !!document.querySelector('.playerbar-online-hint')`
     )
