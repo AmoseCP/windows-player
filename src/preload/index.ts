@@ -51,6 +51,8 @@ const api = {
     ipcRenderer.invoke('playlist:import'),
   readPlaylist: (file: string): Promise<{ name: string; paths: string[] } | null> =>
     ipcRenderer.invoke('playlist:read', file),
+  importFromUrl: (url: string): Promise<Track | { error: string }> =>
+    ipcRenderer.invoke('import:fromUrl', url),
   pickThemeImage: (): Promise<string | null> => ipcRenderer.invoke('theme:pickImage'),
   getLyrics: (path: string): Promise<{ content: string } | null> =>
     ipcRenderer.invoke('lyrics:get', path),

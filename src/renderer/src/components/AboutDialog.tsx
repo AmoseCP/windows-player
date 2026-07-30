@@ -66,6 +66,17 @@ function AboutDialog({ onClose }: AboutDialogProps): React.JSX.Element {
           </div>
         </div>
 
+        <div className="about-section">
+          <div className="about-section-title">免责声明</div>
+          <div className="about-disclaimer">
+            本播放器仅供个人学习与教会内部使用，不用于任何商业运作。
+            <br />
+            应用本身不提供任何音乐内容：本地曲目由使用者自行导入，在线播放由 YouTube
+            官方页面提供。请确保您所导入、播放的音频已获得合法授权；在聚会等公开场合使用录制音乐，
+            可能另需版权方或相应版权机构的许可。因使用本播放器播放的内容引起的版权责任由使用者自行承担。
+          </div>
+        </div>
+
         <div className="dialog-actions about-actions">
           <button className="btn" onClick={onClose}>
             确定

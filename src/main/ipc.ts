@@ -159,6 +159,79 @@ export function registerIpcHandlers(): void {
     return readPlaylistFile(file)
   })
 
+  /**
+   * 从直接的音频链接下载到「音乐/应用名」目录并解析入库。
+   * 只接受 http(s) 且响应为音频类型（或音频扩展名），不做任何流媒体站点的解析。
+   */
+  ipcMain.handle('import:fromUrl', async (_e, url: string): Promise<Track | { error: string }> => {
+    let parsed: URL
+    try {
+      parsed = new URL(String(url))
+    } catch {
+      return { error: '链接格式不正确' }
+    }
+    if (!/^https?:$/.test(parsed.protocol)) return { error: '只支持 http/https 链接' }
+
+    let res: Response
+    try {
+      res = await net.fetch(parsed.toString(), { signal: AbortSignal.timeout(60_000) })
+    } catch {
+      return { error: '无法连接该链接' }
+    }
+    if (!res.ok) return { error: `下载失败（HTTP ${res.status}）` }
+
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase()
+    const urlName = decodeURIComponent(path.basename(parsed.pathname)) || 'audio'
+    const urlExt = path.extname(urlName).toLowerCase()
+    const isAudio =
+      contentType.startsWith('audio/') ||
+      contentType === 'application/ogg' ||
+      (SUPPORTED_EXTENSIONS as readonly string[]).includes(urlExt)
+    if (!isAudio) {
+      return { error: '该链接不是直接的音频文件（需指向 mp3/m4a 等音频本身）' }
+    }
+    const size = Number(res.headers.get('content-length') ?? 0)
+    if (size > 500 * 1024 * 1024) return { error: '文件过大（超过 500MB）' }
+
+    // 扩展名优先取链接自带的，其次按 Content-Type 推断
+    const extFromType = contentType.includes('mpeg')
+      ? '.mp3'
+      : contentType.includes('mp4') || contentType.includes('m4a')
+        ? '.m4a'
+        : contentType.includes('flac')
+          ? '.flac'
+          : contentType.includes('wav')
+            ? '.wav'
+            : contentType.includes('ogg')
+              ? '.ogg'
+              : contentType.includes('aac')
+                ? '.aac'
+                : '.mp3'
+    const ext = (SUPPORTED_EXTENSIONS as readonly string[]).includes(urlExt) ? urlExt : extFromType
+    const base = path.basename(urlName, urlExt).replace(/[\\/:*?"<>|]/g, '_') || 'audio'
+
+    const dir = path.join(app.getPath('music'), 'Bethel Church Audio Player')
+    await fs.mkdir(dir, { recursive: true })
+    let dest = path.join(dir, base + ext)
+    for (let i = 2; ; i++) {
+      try {
+        await fs.access(dest)
+        dest = path.join(dir, `${base} (${i})${ext}`) // 重名则自动加序号
+      } catch {
+        break
+      }
+    }
+
+    try {
+      const buf = Buffer.from(await res.arrayBuffer())
+      await fs.writeFile(dest, buf)
+    } catch {
+      await fs.rm(dest, { force: true }).catch(() => {})
+      return { error: '写入文件失败' }
+    }
+    return parseTrack(dest)
+  })
+
   // 主题背景：选择图片并复制到 userData/theme，返回目标绝对路径
   ipcMain.handle('theme:pickImage', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({

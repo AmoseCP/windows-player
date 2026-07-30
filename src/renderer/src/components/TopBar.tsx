@@ -3,6 +3,7 @@ import { useLibrary } from '../store/library'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
 import AboutDialog from './AboutDialog'
+import UrlImportDialog from './UrlImportDialog'
 import { COLOR_THEMES } from '../themes'
 
 function TopBar(): React.JSX.Element {
@@ -12,6 +13,7 @@ function TopBar(): React.JSX.Element {
   const themeImage = useLibrary((s) => s.themeImage)
   const [themeMenu, setThemeMenu] = useState<{ x: number; y: number } | null>(null)
   const [showAbout, setShowAbout] = useState(false)
+  const [showUrlImport, setShowUrlImport] = useState(false)
   const importing = progress !== null
 
   // 无边框窗口只在 Windows/Linux 需要自绘标题栏按钮
@@ -95,6 +97,14 @@ function TopBar(): React.JSX.Element {
         </button>
         <button
           className="btn"
+          title="从音频直链下载并加入音乐库"
+          onClick={() => setShowUrlImport(true)}
+          disabled={importing}
+        >
+          从链接导入
+        </button>
+        <button
+          className="btn"
           title="粘贴 YouTube 链接在线播放"
           onClick={() => usePlayer.getState().toggleOnline()}
         >
@@ -163,6 +173,7 @@ function TopBar(): React.JSX.Element {
         />
       )}
       {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
+      {showUrlImport && <UrlImportDialog onClose={() => setShowUrlImport(false)} />}
     </header>
   )
 }

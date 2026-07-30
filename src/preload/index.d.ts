@@ -28,6 +28,7 @@ interface Api {
   ): Promise<boolean>
   importPlaylist(): Promise<{ name: string; paths: string[] } | null>
   readPlaylist(file: string): Promise<{ name: string; paths: string[] } | null>
+  importFromUrl(url: string): Promise<Track | { error: string }>
   pickThemeImage(): Promise<string | null>
   getLyrics(path: string): Promise<{ content: string } | null>
   onOpenFiles(cb: (files: string[]) => void): () => void

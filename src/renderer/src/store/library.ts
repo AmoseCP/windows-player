@@ -49,6 +49,8 @@ interface LibraryState {
   /** 导入指定路径并返回对应的曲目 id（已在库中的复用现有 id），用于 m3u 歌单导入 */
   importPathsAsTrackIds: (paths: string[]) => Promise<string[]>
   importPlaylistFile: (file?: string) => Promise<void>
+  /** 从直接音频链接下载并入库，返回错误信息（成功为 null） */
+  importFromUrl: (url: string) => Promise<string | null>
   markMissing: (id: string) => void
 
   setView: (view: View) => void
@@ -217,6 +219,26 @@ export const useLibrary = create<LibraryState>((set, get) => ({
         view: id
       }
     })
+  },
+
+  importFromUrl: async (url) => {
+    if (get().importProgress) return '正在导入中，请稍候'
+    set({ importProgress: { done: 0, total: 1 } })
+    try {
+      const result = await window.api.importFromUrl(url)
+      if ('error' in result) return result.error
+      const track = result
+      if (Object.values(get().tracks).some((t) => t.path === track.path)) return null
+      set((s) => ({
+        tracks: { ...s.tracks, [track.id]: track },
+        trackOrder: [...s.trackOrder, track.id]
+      }))
+      return null
+    } catch {
+      return '下载失败，请检查链接与网络'
+    } finally {
+      set({ importProgress: null })
+    }
   },
 
   markMissing: (id) =>
