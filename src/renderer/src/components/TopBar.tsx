@@ -3,6 +3,7 @@ import { useLibrary } from '../store/library'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
 import AboutDialog from './AboutDialog'
+import { COLOR_THEMES } from '../themes'
 
 function TopBar(): React.JSX.Element {
   const importPaths = useLibrary((s) => s.importPaths)
@@ -121,9 +122,17 @@ function TopBar(): React.JSX.Element {
           x={themeMenu.x}
           y={themeMenu.y}
           items={[
+            {
+              label: '配色主题',
+              submenu: Object.entries(COLOR_THEMES).map(([id, t]) => ({
+                label: t.label,
+                checked: useLibrary.getState().colorTheme === id,
+                onClick: () => useLibrary.getState().setColorTheme(id)
+              }))
+            },
             { label: '上传背景图片…', onClick: uploadTheme },
             {
-              label: '恢复默认主题',
+              label: '恢复默认背景',
               disabled: !themeImage,
               onClick: () => useLibrary.getState().setThemeImage(null)
             }

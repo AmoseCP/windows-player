@@ -50,10 +50,10 @@ function App(): React.JSX.Element {
   const themeImage = useLibrary((s) => s.themeImage)
   const themeVersion = useLibrary((s) => s.themeVersion)
 
-  // 自定义背景：图片上叠加深色渐变保证前景可读
+  // 自定义背景：图片上叠加主题色渐变保证前景可读
   const themeStyle = themeImage
     ? {
-        backgroundImage: `linear-gradient(rgba(12, 12, 14, 0.78), rgba(12, 12, 14, 0.86)), url("${localFileUrl(themeImage)}?v=${themeVersion}")`
+        backgroundImage: `linear-gradient(var(--overlay), var(--overlay)), url("${localFileUrl(themeImage)}?v=${themeVersion}")`
       }
     : undefined
 

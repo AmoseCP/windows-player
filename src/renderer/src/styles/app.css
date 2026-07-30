@@ -9,6 +9,9 @@
   --text-muted: #6a6a72;
   --accent: #4f8cff;
   --border: #2c2c30;
+  --overlay: rgba(12, 12, 14, 0.82);
+  --glass: rgba(20, 20, 22, 0.55);
+  --panel: rgba(14, 14, 16, 0.97);
   --topbar-height: 56px;
   --playerbar-height: 84px;
 }
@@ -702,15 +705,11 @@ input {
 .app.themed .topbar,
 .app.themed .sidebar,
 .app.themed .playerbar {
-  background: rgba(20, 20, 22, 0.55);
+  background: var(--glass);
 }
 
 .app.themed .tracklist-header {
-  background: rgba(12, 12, 14, 0.6);
-}
-
-.app.themed .track-row:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--glass);
 }
 
 /* 迷你播放器 */
@@ -831,11 +830,7 @@ input {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  background: rgba(14, 14, 16, 0.96);
-}
-
-.app.themed .lyrics-panel {
-  background: rgba(14, 14, 16, 0.82);
+  background: var(--panel);
 }
 
 .lyrics-header {
@@ -911,7 +906,7 @@ input {
   z-index: 6;
   display: flex;
   flex-direction: column;
-  background: rgba(14, 14, 16, 0.98);
+  background: var(--panel);
 }
 
 .online-header {

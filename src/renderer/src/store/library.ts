@@ -6,6 +6,7 @@ import type {
   PlaylistFolder,
   YouTubeHistoryItem
 } from '../../../shared/types'
+import { applyColorTheme } from '../themes'
 
 function ytKey(videoId: string, listId: string | null): string {
   return `${videoId}|${listId ?? ''}`
@@ -29,6 +30,7 @@ interface LibraryState {
   search: string
   themeImage: string | null
   themeVersion: number // 同名文件被替换时用于刷新缓存
+  colorTheme: string
   youtubeHistory: YouTubeHistoryItem[] // 在线播放记录，新的在前
 
   init: () => Promise<void>
@@ -36,6 +38,7 @@ interface LibraryState {
   toggleSidebar: () => void
   setSearch: (s: string) => void
   setThemeImage: (path: string | null) => void
+  setColorTheme: (id: string) => void
   addYouTubeHistory: (item: Omit<YouTubeHistoryItem, 'playedAt'>) => void
   setYouTubeTitle: (videoId: string, listId: string | null, title: string) => void
   removeYouTubeHistory: (videoId: string, listId: string | null) => void
@@ -81,6 +84,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   search: '',
   themeImage: null,
   themeVersion: 0,
+  colorTheme: 'dark',
   youtubeHistory: [],
 
   init: async () => {
@@ -94,6 +98,11 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   setSearch: (search) => set({ search }),
 
   setThemeImage: (themeImage) => set((s) => ({ themeImage, themeVersion: s.themeVersion + 1 })),
+
+  setColorTheme: (colorTheme) => {
+    applyColorTheme(colorTheme)
+    set({ colorTheme })
+  },
 
   // 同一视频/歌单重复播放时移到最前并更新时间，最多保留 100 条
   addYouTubeHistory: (item) =>

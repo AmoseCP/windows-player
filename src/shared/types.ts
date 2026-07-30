@@ -50,6 +50,7 @@ export interface AppSettings {
   sidebarWidth: number
   sidebarCollapsed?: boolean
   themeImage: string | null // 自定义背景图片的绝对路径（userData/theme 下）
+  colorTheme?: string // 配色主题 id（dark/pink/red/blue/purple/orange）
 }
 
 export interface YouTubeSearchResult {

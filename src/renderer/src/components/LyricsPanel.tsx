@@ -22,9 +22,12 @@ function Visualizer(): React.JSX.Element {
     canvas.height = canvas.clientHeight * dpr
     const c = canvas.getContext('2d')
     if (!c) return
+    // 跟随当前主题强调色
+    const accent =
+      getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f8cff'
     const gradient = c.createLinearGradient(0, 0, 0, canvas.height)
-    gradient.addColorStop(0, '#6ea8ff')
-    gradient.addColorStop(1, '#31518f')
+    gradient.addColorStop(0, accent)
+    gradient.addColorStop(1, accent + '66')
     c.fillStyle = gradient
 
     let raf = 0

@@ -1,5 +1,6 @@
 import { useLibrary } from './library'
 import { usePlayer, currentTrackId } from './player'
+import { applyColorTheme } from '../themes'
 import type { AppData } from '../../../shared/types'
 
 let ready = false // 加载完成前不触发保存，避免用空状态覆盖磁盘数据
@@ -21,7 +22,8 @@ function collect(): AppData {
       lastPlayedTrackId: currentTrackId(player),
       sidebarWidth: lib.sidebarWidth,
       sidebarCollapsed: lib.sidebarCollapsed,
-      themeImage: lib.themeImage
+      themeImage: lib.themeImage,
+      colorTheme: lib.colorTheme
     }
   }
 }
@@ -43,8 +45,10 @@ export async function initPersistence(): Promise<void> {
       sidebarWidth: data.settings?.sidebarWidth ?? 220,
       sidebarCollapsed: data.settings?.sidebarCollapsed ?? false,
       themeImage: data.settings?.themeImage ?? null,
+      colorTheme: data.settings?.colorTheme ?? 'dark',
       youtubeHistory: data.youtubeHistory ?? []
     })
+    applyColorTheme(data.settings?.colorTheme ?? 'dark')
     const st = data.settings
     const last = st?.lastPlayedTrackId
     usePlayer.setState({
