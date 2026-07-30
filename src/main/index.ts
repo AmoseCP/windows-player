@@ -25,7 +25,7 @@ let tray: Tray | null = null
 let isQuitting = false // 仅托盘「退出」/系统退出时为 true；普通关闭 = 隐藏到托盘
 
 const NORMAL_MIN = { width: 960, height: 640 }
-const MINI_SIZE = { width: 280, height: 72 }
+const MINI_SIZE = { width: 240, height: 56 }
 let normalBounds: Electron.Rectangle | null = null // 迷你模式前的窗口位置尺寸
 
 function showMainWindow(): void {
