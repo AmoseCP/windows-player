@@ -3,6 +3,7 @@ import { usePlayer, currentTrackId } from '../store/player'
 import { useLibrary } from '../store/library'
 import { useAudio } from '../hooks/useAudio'
 import { localFileUrl } from '../utils'
+import NoteIcon from './NoteIcon'
 
 /** 迷你模式：无边框紧凑悬浮条，整体可拖动，悬停显示放大/关闭按钮 */
 function MiniPlayer(): React.JSX.Element {
@@ -26,7 +27,7 @@ function MiniPlayer(): React.JSX.Element {
         {track?.coverFile && coversDir ? (
           <img src={localFileUrl(`${coversDir}/${track.coverFile}`)} alt="" />
         ) : (
-          '♪'
+          <NoteIcon size={16} />
         )}
       </div>
       <div className="mini-main">

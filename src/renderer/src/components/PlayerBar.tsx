@@ -5,6 +5,7 @@ import { useLibrary } from '../store/library'
 import { useAudio } from '../hooks/useAudio'
 import { localFileUrl, formatDuration } from '../utils'
 import ContextMenu from './ContextMenu'
+import NoteIcon from './NoteIcon'
 
 const MODE_META: Record<PlayMode, { icon: string; label: string }> = {
   order: { icon: '➡', label: '顺序播放' },
@@ -71,18 +72,7 @@ function PlayerBar(): React.JSX.Element {
         {track?.coverFile && coversDir ? (
           <img src={localFileUrl(`${coversDir}/${track.coverFile}`)} alt="" />
         ) : (
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path
-              d="M9 18V5.5l12-2.2V16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="6.5" cy="18" r="2.6" fill="currentColor" />
-            <circle cx="18.5" cy="16" r="2.6" fill="currentColor" />
-          </svg>
+          <NoteIcon size={20} />
         )}
       </div>
       <div className="playerbar-meta">

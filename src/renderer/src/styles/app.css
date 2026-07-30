@@ -720,15 +720,14 @@ input {
 }
 
 .mini-cover {
-  width: 44px;
-  height: 44px;
-  border-radius: 5px;
-  background: var(--bg-hover);
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3d5a96, #223457);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  font-size: 16px;
+  color: rgba(255, 255, 255, 0.88);
   flex-shrink: 0;
   overflow: hidden;
 }
