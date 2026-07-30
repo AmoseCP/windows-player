@@ -38,6 +38,7 @@ const collisionDetection: CollisionDetection = (args) => {
 
 function App(): React.JSX.Element {
   const sidebarWidth = useLibrary((s) => s.sidebarWidth)
+  const sidebarCollapsed = useLibrary((s) => s.sidebarCollapsed)
   const [resizing, setResizing] = useState(false)
   const [dragLabel, setDragLabel] = useState<string | null>(null)
   const dragging = useRef(false)
@@ -174,11 +175,15 @@ function App(): React.JSX.Element {
       >
         <TopBar />
         <div className="app-middle">
-          <Sidebar width={sidebarWidth} />
-          <div
-            className={`sidebar-resizer${resizing ? ' dragging' : ''}`}
-            onMouseDown={startResize}
-          />
+          {!sidebarCollapsed && (
+            <>
+              <Sidebar width={sidebarWidth} />
+              <div
+                className={`sidebar-resizer${resizing ? ' dragging' : ''}`}
+                onMouseDown={startResize}
+              />
+            </>
+          )}
           <main className="main-area">
             <div className="main-scroll">
               <TrackList />

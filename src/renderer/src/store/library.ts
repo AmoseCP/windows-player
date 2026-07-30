@@ -25,6 +25,7 @@ interface LibraryState {
   coversDir: string
   importProgress: ImportProgress | null
   sidebarWidth: number
+  sidebarCollapsed: boolean
   search: string
   themeImage: string | null
   themeVersion: number // 同名文件被替换时用于刷新缓存
@@ -32,6 +33,7 @@ interface LibraryState {
 
   init: () => Promise<void>
   setSidebarWidth: (w: number) => void
+  toggleSidebar: () => void
   setSearch: (s: string) => void
   setThemeImage: (path: string | null) => void
   addYouTubeHistory: (item: Omit<YouTubeHistoryItem, 'playedAt'>) => void
@@ -75,6 +77,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   coversDir: '',
   importProgress: null,
   sidebarWidth: 220,
+  sidebarCollapsed: false,
   search: '',
   themeImage: null,
   themeVersion: 0,
@@ -85,6 +88,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   },
 
   setSidebarWidth: (w) => set({ sidebarWidth: w }),
+
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
   setSearch: (search) => set({ search }),
 

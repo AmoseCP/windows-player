@@ -24,8 +24,32 @@ function TopBar(): React.JSX.Element {
     }
   }
 
+  const sidebarCollapsed = useLibrary((s) => s.sidebarCollapsed)
+
   return (
     <header className="topbar">
+      <button
+        className="sidebar-toggle"
+        title={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
+        onClick={() => useLibrary.getState().toggleSidebar()}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <rect
+            x="3"
+            y="4"
+            width="18"
+            height="16"
+            rx="2.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          />
+          <line x1="9.5" y1="4" x2="9.5" y2="20" stroke="currentColor" strokeWidth="1.7" />
+          {!sidebarCollapsed && (
+            <rect x="4.5" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" />
+          )}
+        </svg>
+      </button>
       <div className="topbar-title">Bethel Church Audio Player</div>
       <input
         className="topbar-search"

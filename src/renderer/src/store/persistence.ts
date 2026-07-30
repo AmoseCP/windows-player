@@ -20,6 +20,7 @@ function collect(): AppData {
       playMode: player.playMode,
       lastPlayedTrackId: currentTrackId(player),
       sidebarWidth: lib.sidebarWidth,
+      sidebarCollapsed: lib.sidebarCollapsed,
       themeImage: lib.themeImage
     }
   }
@@ -40,6 +41,7 @@ export async function initPersistence(): Promise<void> {
       playlists: data.playlists ?? {},
       rootPlaylistIds: data.rootPlaylistIds ?? [],
       sidebarWidth: data.settings?.sidebarWidth ?? 220,
+      sidebarCollapsed: data.settings?.sidebarCollapsed ?? false,
       themeImage: data.settings?.themeImage ?? null,
       youtubeHistory: data.youtubeHistory ?? []
     })

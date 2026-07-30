@@ -108,6 +108,21 @@ input {
   white-space: nowrap;
 }
 
+/* 侧栏收起/展开按钮 */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  margin-right: -6px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .topbar-search {
   flex: 1;
   max-width: 360px;
