@@ -873,6 +873,22 @@ input {
   color: var(--text-muted);
 }
 
+/* 无歌词：频谱律动条 + 提示 */
+.lyrics-empty-vis {
+  flex-direction: column;
+  gap: 24px;
+}
+
+.lyrics-visualizer {
+  width: min(560px, 80%);
+  height: 180px;
+}
+
+.lyrics-empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* 在线播放面板（YouTube 嵌入） */
 .online-panel {
   position: absolute;

@@ -6,6 +6,8 @@ import { localFileUrl } from '../utils'
 // 单例 audio 元素：MP4 用 audio 加载天然只出声不出画
 // 导出供歌词面板等只读订阅播放进度（写操作仅限本 hook）
 export const audio = new Audio()
+// CORS 模式加载（localfile 协议已返回 ACAO 头），Web Audio 分析器才能读到真实数据
+audio.crossOrigin = 'anonymous'
 
 interface AudioState {
   currentTime: number

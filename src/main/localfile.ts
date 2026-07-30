@@ -5,7 +5,9 @@ import { Readable } from 'stream'
 /** 必须在 app ready 前调用：注册 localfile:// 为特权协议（流式 + fetch 可用） */
 export function registerLocalFileSchemes(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'localfile', privileges: { stream: true, supportFetchAPI: true } }
+    // corsEnabled: audio 元素以 crossOrigin 模式加载（Web Audio 分析器需要），
+    // 协议必须允许 CORS 请求
+    { scheme: 'localfile', privileges: { stream: true, supportFetchAPI: true, corsEnabled: true } }
   ])
 }
 
@@ -58,7 +60,9 @@ export function registerLocalFileProtocol(): void {
           headers: {
             'Accept-Ranges': 'bytes',
             'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-            'Content-Length': String(end - start + 1)
+            'Content-Length': String(end - start + 1),
+            // 允许 Web Audio 分析器读取音频数据（audio 元素以 crossOrigin 模式加载）
+            'Access-Control-Allow-Origin': '*'
           }
         })
       }
@@ -67,7 +71,8 @@ export function registerLocalFileProtocol(): void {
         status: 200,
         headers: {
           'Accept-Ranges': 'bytes',
-          'Content-Length': String(stat.size)
+          'Content-Length': String(stat.size),
+          'Access-Control-Allow-Origin': '*'
         }
       })
     } catch {

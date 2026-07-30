@@ -2,8 +2,55 @@ import { useEffect, useRef, useState } from 'react'
 import { usePlayer, currentTrackId } from '../store/player'
 import { useLibrary } from '../store/library'
 import { audio } from '../hooks/useAudio'
+import { getAnalyser } from '../visualizer'
 import { parseLrc } from '../utils'
 import type { LyricLine } from '../utils'
+
+const BAR_COUNT = 48
+
+/** 无歌词时的频谱律动条：实时读取播放中音频的频率数据绘制 */
+function Visualizer(): React.JSX.Element {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const analyser = getAnalyser()
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = canvas.clientWidth * dpr
+    canvas.height = canvas.clientHeight * dpr
+    const c = canvas.getContext('2d')
+    if (!c) return
+    const gradient = c.createLinearGradient(0, 0, 0, canvas.height)
+    gradient.addColorStop(0, '#6ea8ff')
+    gradient.addColorStop(1, '#31518f')
+    c.fillStyle = gradient
+
+    let raf = 0
+    const draw = (): void => {
+      analyser.getByteFrequencyData(data)
+      const { width, height } = canvas
+      c.clearRect(0, 0, width, height)
+      const slot = width / BAR_COUNT
+      const barW = slot * 0.55
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const v = data[i] / 255
+        const h = Math.max(3 * dpr, v * height * 0.92)
+        const x = i * slot + (slot - barW) / 2
+        const y = (height - h) / 2 // 以中线对称，呈波浪感
+        c.beginPath()
+        c.roundRect(x, y, barW, h, barW / 2)
+        c.fill()
+      }
+      raf = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  return <canvas ref={canvasRef} className="lyrics-visualizer" />
+}
 
 /** 歌词面板：覆盖在主区上方；LRC 按时间高亮当前行并自动滚动 */
 function LyricsPanel(): React.JSX.Element {
@@ -77,7 +124,10 @@ function LyricsPanel(): React.JSX.Element {
         ) : lines === null ? (
           <div className="lyrics-empty">加载中…</div>
         ) : lines.length === 0 ? (
-          <div className="lyrics-empty">暂无歌词（可在音频同目录放置同名 .lrc 文件）</div>
+          <div className="lyrics-empty lyrics-empty-vis">
+            <Visualizer />
+            <div className="lyrics-empty-hint">暂无歌词（可在音频同目录放置同名 .lrc 文件）</div>
+          </div>
         ) : (
           lines.map((line, i) => (
             <div
