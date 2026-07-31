@@ -3,6 +3,7 @@ import { useLibrary } from '../store/library'
 import { usePlayer } from '../store/player'
 import { parseYouTubeUrl, formatDuration } from '../utils'
 import type { YouTubePlaylistEntry } from '../../../shared/types'
+import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
   url: string
@@ -17,8 +18,11 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [inLibrary, setInLibrary] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Record<string, string>>({})
+  const [failedIds, setFailedIds] = useState<Set<string>>(new Set())
   const [running, setRunning] = useState(false)
   const [parseNote, setParseNote] = useState('')
+  // 待确认移除的任务（非 null 时显示确认框）
+  const [removeTarget, setRemoveTarget] = useState<YouTubePlaylistEntry | null>(null)
   const stopRef = useRef(false)
   const listId = parseYouTubeUrl(url)?.listId ?? ''
 
@@ -81,6 +85,21 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
     })
   }
 
+  const removeEntry = (videoId: string): void => {
+    setEntries((list) => (list ? list.filter((e) => e.videoId !== videoId) : list))
+    setChecked((c) => {
+      const next = new Set(c)
+      next.delete(videoId)
+      return next
+    })
+    setFailedIds((f) => {
+      const next = new Set(f)
+      next.delete(videoId)
+      return next
+    })
+    setRemoveTarget(null)
+  }
+
   const toggleAll = (): void => {
     if (!entries) return
     setChecked((c) =>
@@ -88,9 +107,11 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
     )
   }
 
-  const start = async (): Promise<void> => {
+  // only 不传时下载勾选的曲目；「重试失败」传入失败集合，绕过 setChecked 的异步更新
+  const start = async (only?: Set<string>): Promise<void> => {
     if (!entries || running) return
-    const targets = entries.filter((e) => checked.has(e.videoId))
+    const sel = only ?? checked
+    const targets = entries.filter((e) => sel.has(e.videoId))
     if (targets.length === 0) return
     setRunning(true)
     stopRef.current = false
@@ -107,6 +128,7 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
         if ('error' in result) {
           failed++
           setStatus((s) => ({ ...s, [e.videoId]: `失败：${result.error.slice(0, 60)}` }))
+          setFailedIds((f) => new Set(f).add(e.videoId))
         } else {
           useLibrary.getState().addDownloadedTrack(result)
           ok++
@@ -118,10 +140,17 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
             next.delete(e.videoId)
             return next
           })
+          setFailedIds((f) => {
+            if (!f.has(e.videoId)) return f
+            const next = new Set(f)
+            next.delete(e.videoId)
+            return next
+          })
         }
       } catch {
         failed++
         setStatus((s) => ({ ...s, [e.videoId]: '失败' }))
+        setFailedIds((f) => new Set(f).add(e.videoId))
       }
     }
     setRunning(false)
@@ -156,6 +185,9 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
               </label>
               <span className="playlist-dl-count">
                 已选 {checked.size} / {entries.length} 首
+                {failedIds.size > 0 && (
+                  <span className="playlist-dl-failed">失败 {failedIds.size} 首</span>
+                )}
               </span>
             </div>
             <div className="playlist-dl-list">
@@ -176,6 +208,19 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
                   <span className="playlist-dl-status">
                     {status[e.videoId] ?? (inLibrary.has(e.videoId) ? '已在库中' : '')}
                   </span>
+                  <button
+                    className="playlist-dl-remove"
+                    title="从列表中移除该任务"
+                    disabled={running}
+                    onClick={(ev) => {
+                      // 按钮在 label 内，阻止默认行为避免顺带切换勾选框
+                      ev.preventDefault()
+                      ev.stopPropagation()
+                      setRemoveTarget(e)
+                    }}
+                  >
+                    ✕
+                  </button>
                 </label>
               ))}
             </div>
@@ -196,6 +241,17 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
               关闭
             </button>
           )}
+          {failedIds.size > 0 && !running && (
+            <button
+              className="btn"
+              onClick={() => {
+                setChecked(new Set(failedIds))
+                void start(new Set(failedIds))
+              }}
+            >
+              重试失败（{failedIds.size} 首）
+            </button>
+          )}
           {entries !== null && (
             <button
               className="btn"
@@ -206,6 +262,14 @@ function PlaylistDownloadDialog({ url, onClose }: Props): React.JSX.Element {
             </button>
           )}
         </div>
+        {removeTarget && (
+          <ConfirmDialog
+            title="移除下载任务"
+            message={`确定从下载列表移除「${removeTarget.title}」吗？`}
+            onConfirm={() => removeEntry(removeTarget.videoId)}
+            onCancel={() => setRemoveTarget(null)}
+          />
+        )}
       </div>
     </div>
   )

@@ -1174,6 +1174,11 @@ input {
   font-size: 12px;
 }
 
+.playlist-dl-failed {
+  color: #ff6b6b;
+  margin-left: 8px;
+}
+
 .playlist-dl-list {
   overflow-y: auto;
   min-height: 80px;
@@ -1212,6 +1217,28 @@ input {
   color: var(--text-muted);
   font-size: 12px;
   flex-shrink: 0;
+}
+
+.playlist-dl-remove {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  visibility: hidden;
+  flex-shrink: 0;
+}
+
+.playlist-dl-item:hover .playlist-dl-remove {
+  visibility: visible;
+}
+
+.playlist-dl-remove:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-active);
+}
+
+.playlist-dl-remove:disabled {
+  opacity: 0.4;
 }
 
 .playlist-dl-status {
