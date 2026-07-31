@@ -73,6 +73,8 @@ interface LibraryState {
   toggleDir: (path: string) => void
   /** 从直接音频链接下载并入库，返回错误信息（成功为 null） */
   importFromUrl: (url: string) => Promise<string | null>
+  /** 把主进程已下载并解析好的曲目加入音乐库；路径已存在返回 false */
+  addDownloadedTrack: (track: Track) => boolean
   markMissing: (id: string) => void
 
   setView: (view: View) => void
@@ -265,6 +267,15 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     } finally {
       set({ importProgress: null })
     }
+  },
+
+  addDownloadedTrack: (track) => {
+    if (Object.values(get().tracks).some((t) => t.path === track.path)) return false
+    set((s) => ({
+      tracks: { ...s.tracks, [track.id]: track },
+      trackOrder: [...s.trackOrder, track.id]
+    }))
+    return true
   },
 
   tracksUnderDir: (dir) => {

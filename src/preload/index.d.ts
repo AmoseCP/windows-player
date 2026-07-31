@@ -3,7 +3,9 @@ import type {
   Track,
   ImportProgress,
   ScanResult,
-  YouTubeSearchResult
+  YouTubeSearchResult,
+  YouTubeDownloadProgress,
+  YouTubePlaylistInfo
 } from '../shared/types'
 
 interface Api {
@@ -32,6 +34,12 @@ interface Api {
   openYouTubeWindow(url: string): void
   getYouTubeTitle(url: string): Promise<string | null>
   searchYouTube(query: string): Promise<YouTubeSearchResult[]>
+  downloadYouTubeAudio(
+    url: string,
+    meta?: { title?: string; artist?: string }
+  ): Promise<Track | { error: string }>
+  onYouTubeDownloadProgress(cb: (p: YouTubeDownloadProgress) => void): () => void
+  parseYouTubePlaylist(url: string): Promise<YouTubePlaylistInfo | { error: string }>
   onPlayerStop(cb: () => void): () => void
   onMiniHover(cb: (hovered: boolean) => void): () => void
   exportPlaylist(

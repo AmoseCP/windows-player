@@ -48,7 +48,7 @@ function UrlImportDialog({ onClose }: Props): React.JSX.Element {
           需填写指向音频文件本身的直接链接（如教会网站上的 .mp3 / .m4a）。 文件将下载到「音乐 /
           Bethel Church Audio Player」文件夹并加入音乐库。
           <br />
-          不支持 YouTube 等流媒体页面链接 —— 这类内容请使用「在线」面板播放。
+          不支持 YouTube 等流媒体页面链接 —— 这类内容请到「在线」面板播放或下载音频。
         </div>
         <div className="dialog-actions">
           <button className="btn" onClick={onClose} disabled={busy}>

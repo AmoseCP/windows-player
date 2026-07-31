@@ -64,6 +64,24 @@ export interface YouTubeSearchResult {
   thumbnail: string
 }
 
+export interface YouTubePlaylistEntry {
+  videoId: string
+  title: string
+  channel: string
+  duration: number // 秒；未知为 0
+}
+
+export interface YouTubePlaylistInfo {
+  title: string
+  entries: YouTubePlaylistEntry[]
+}
+
+export interface YouTubeDownloadProgress {
+  videoId: string
+  phase: 'component' | 'download' // component = 首次使用时下载 yt-dlp 组件
+  percent: number // 0–100
+}
+
 export interface YouTubeHistoryItem {
   url: string
   videoId: string // 为空表示纯歌单链接

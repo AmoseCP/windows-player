@@ -7,6 +7,12 @@ import { collectAudioFiles, collectAudioFileEntries } from './library'
 import { parseTrack, coversDir } from './metadata'
 import { loadData, scheduleSave } from './store'
 import { searchYouTube } from './youtubeSearch'
+import {
+  downloadYouTubeAudio,
+  extractYouTubeVideoId,
+  extractYouTubeListId,
+  fetchYouTubePlaylist
+} from './youtubeDownload'
 import { SUPPORTED_EXTENSIONS } from '../shared/types'
 import type { AppData, ScanResult, Track } from '../shared/types'
 
@@ -179,6 +185,51 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  // YouTube 音频下载：下到「音乐/应用名」目录并解析入库；进度通过
+  // youtube:downloadProgress 推送（按 videoId 区分，允许多个视频并行下载）
+  const activeDownloads = new Set<string>()
+  ipcMain.handle(
+    'youtube:download',
+    async (
+      event,
+      url: string,
+      meta?: { title?: string; artist?: string }
+    ): Promise<Track | { error: string }> => {
+      const videoId = extractYouTubeVideoId(String(url))
+      if (!videoId) return { error: '不是有效的 YouTube 视频链接' }
+      if (activeDownloads.has(videoId)) return { error: '该视频正在下载中' }
+      activeDownloads.add(videoId)
+      try {
+        const dir = path.join(app.getPath('music'), 'Bethel Church Audio Player')
+        await fs.mkdir(dir, { recursive: true })
+        const result = await downloadYouTubeAudio(videoId, dir, (phase, percent) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('youtube:downloadProgress', { videoId, phase, percent })
+          }
+        })
+        if ('error' in result) return result
+        const track = await parseTrack(result.file)
+        // YouTube 音频无内嵌标签，优先用调用方传来的视频标题/频道名
+        if (typeof meta?.title === 'string' && meta.title) track.title = meta.title
+        if (typeof meta?.artist === 'string' && meta.artist) track.artist = meta.artist
+        return track
+      } finally {
+        activeDownloads.delete(videoId)
+      }
+    }
+  )
+
+  // 解析歌单为视频列表（不下载）；首次使用时组件下载进度以 videoId=listId 推送
+  ipcMain.handle('youtube:playlist', async (event, url: string) => {
+    const listId = extractYouTubeListId(String(url))
+    if (!listId) return { error: '链接中没有歌单（list=）参数' }
+    return fetchYouTubePlaylist(listId, (phase, percent) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('youtube:downloadProgress', { videoId: listId, phase, percent })
+      }
+    })
+  })
+
   // 通过 oEmbed 取视频标题（无需 API key），失败返回 null
   ipcMain.handle('youtube:title', async (_e, videoUrl: string) => {
     try {
@@ -273,8 +324,9 @@ export function registerIpcHandlers(): void {
     if (!isAudio) {
       return { error: '该链接不是直接的音频文件（需指向 mp3/m4a 等音频本身）' }
     }
+    const MAX_DOWNLOAD = 500 * 1024 * 1024
     const size = Number(res.headers.get('content-length') ?? 0)
-    if (size > 500 * 1024 * 1024) return { error: '文件过大（超过 500MB）' }
+    if (size > MAX_DOWNLOAD) return { error: '文件过大（超过 500MB）' }
 
     // 扩展名优先取链接自带的，其次按 Content-Type 推断
     const extFromType = contentType.includes('mpeg')
@@ -305,12 +357,34 @@ export function registerIpcHandlers(): void {
       }
     }
 
+    // 流式写盘：大文件不占内存；边下边计数，服务器不报 content-length 时上限依然生效
     try {
-      const buf = Buffer.from(await res.arrayBuffer())
-      await fs.writeFile(dest, buf)
-    } catch {
+      if (!res.body) throw new Error('empty body')
+      const reader = res.body.getReader()
+      const out = await fs.open(dest, 'w')
+      let received = 0
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          received += value.length
+          if (received > MAX_DOWNLOAD) {
+            await reader.cancel()
+            throw new Error('too-large')
+          }
+          await out.write(value)
+        }
+      } finally {
+        await out.close()
+      }
+    } catch (err) {
       await fs.rm(dest, { force: true }).catch(() => {})
-      return { error: '写入文件失败' }
+      return {
+        error:
+          err instanceof Error && err.message === 'too-large'
+            ? '文件过大（超过 500MB）'
+            : '写入文件失败'
+      }
     }
     return parseTrack(dest)
   })

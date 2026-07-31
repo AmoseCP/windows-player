@@ -52,7 +52,7 @@ async function writeNow(): Promise<void> {
   const file = dataPath()
   // 临时文件名唯一，杜绝与其它写入（含退出时的同步写）互相覆盖
   const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
-  writing = (async () => {
+  const mine = (async () => {
     try {
       await fs.writeFile(tmp, JSON.stringify(data), 'utf-8')
       await fs.rename(tmp, file)
@@ -61,8 +61,10 @@ async function writeNow(): Promise<void> {
       await fs.rm(tmp, { force: true }).catch(() => {})
     }
   })()
-  await writing
-  writing = null
+  writing = mine
+  await mine
+  // 等待期间可能已有新一轮写入接管了 writing，只清理自己的标志
+  if (writing === mine) writing = null
 }
 
 /** 渲染进程每次变更都会调用，主进程 500ms 防抖落盘 */

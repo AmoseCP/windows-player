@@ -4,7 +4,9 @@ import type {
   Track,
   ImportProgress,
   ScanResult,
-  YouTubeSearchResult
+  YouTubeSearchResult,
+  YouTubeDownloadProgress,
+  YouTubePlaylistInfo
 } from '../shared/types'
 
 // 渲染进程可用的白名单 API。
@@ -45,6 +47,17 @@ const api = {
     ipcRenderer.invoke('youtube:title', url),
   searchYouTube: (query: string): Promise<YouTubeSearchResult[]> =>
     ipcRenderer.invoke('youtube:search', query),
+  downloadYouTubeAudio: (
+    url: string,
+    meta?: { title?: string; artist?: string }
+  ): Promise<Track | { error: string }> => ipcRenderer.invoke('youtube:download', url, meta),
+  parseYouTubePlaylist: (url: string): Promise<YouTubePlaylistInfo | { error: string }> =>
+    ipcRenderer.invoke('youtube:playlist', url),
+  onYouTubeDownloadProgress: (cb: (p: YouTubeDownloadProgress) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, p: YouTubeDownloadProgress): void => cb(p)
+    ipcRenderer.on('youtube:downloadProgress', listener)
+    return () => ipcRenderer.removeListener('youtube:downloadProgress', listener)
+  },
   onPlayerStop: (cb: () => void): (() => void) => {
     const listener = (): void => cb()
     ipcRenderer.on('player:stop', listener)

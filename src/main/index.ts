@@ -166,6 +166,15 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // 主窗口永不离开应用自身页面：localfile:// 协议注册在它的 session 上，
+  // 一旦被导航到远程页面，对方就能读取本地文件。开发模式只放行 dev server 自身（HMR 重载）
+  const devUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (devUrl ? url.startsWith(devUrl) : url.startsWith('file://')) return
+    e.preventDefault()
+    openExternalSafely(url)
+  })
+
   // 强制 webview 使用隔离分区且禁用 Node/preload：localfile 协议只注册在
   // defaultSession，隔离后远程页面无法通过该协议读取本地文件
   mainWindow.webContents.on('will-attach-webview', (_e, webPreferences, params) => {

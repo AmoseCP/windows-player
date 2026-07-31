@@ -83,6 +83,43 @@ export function useAudio(): AudioState {
     audio.playbackRate = playbackRate
   }, [playbackRate])
 
+  // 系统媒体信息（Windows 媒体浮层/锁屏、macOS 正在播放）：显示曲目与封面
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const track = trackId ? useLibrary.getState().tracks[trackId] : null
+    if (!track) {
+      navigator.mediaSession.metadata = null
+      return
+    }
+    const coversDir = useLibrary.getState().coversDir
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      artwork:
+        track.coverFile && coversDir
+          ? [{ src: localFileUrl(`${coversDir}/${track.coverFile}`) }]
+          : []
+    })
+  }, [trackId, playNonce])
+
+  // 系统媒体浮层按钮 → 播放器动作（与全局媒体键并存，覆盖鼠标点击浮层的场景）
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    ms.setActionHandler('play', () => {
+      if (currentTrackId(usePlayer.getState())) usePlayer.setState({ playing: true })
+    })
+    ms.setActionHandler('pause', () => usePlayer.setState({ playing: false }))
+    ms.setActionHandler('previoustrack', () => usePlayer.getState().prev())
+    ms.setActionHandler('nexttrack', () => usePlayer.getState().next(false))
+    return () => {
+      for (const a of ['play', 'pause', 'previoustrack', 'nexttrack'] as const) {
+        ms.setActionHandler(a, null)
+      }
+    }
+  }, [])
+
   // 睡眠定时器：到点淡出停止
   useEffect(() => {
     if (sleepAt === null) return

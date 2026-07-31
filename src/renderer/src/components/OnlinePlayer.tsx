@@ -5,6 +5,7 @@ import { useLibrary } from '../store/library'
 import { parseYouTubeUrl } from '../utils'
 import type { YouTubeRef } from '../utils'
 import type { YouTubeHistoryItem, YouTubeSearchResult } from '../../../shared/types'
+import PlaylistDownloadDialog from './PlaylistDownloadDialog'
 
 function formatPlayedAt(t: number): string {
   return new Date(t).toLocaleString('zh-CN', {
@@ -100,11 +101,54 @@ function OnlinePlayer(): React.JSX.Element {
   const [results, setResults] = useState<YouTubeSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchFailed, setSearchFailed] = useState(false)
+  // 下载中的视频：videoId → 按钮上显示的进度文本
+  const [downloads, setDownloads] = useState<Record<string, string>>({})
+  // 歌单批量下载对话框（非 null 时显示）
+  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null)
   const history = useLibrary((s) => s.youtubeHistory)
   const tabs = usePlayer((s) => s.onlineTabs)
   const activeTabId = usePlayer((s) => s.activeTabId)
-  const inputIsUrl = parseYouTubeUrl(input) !== null
+  const inputRef = parseYouTubeUrl(input)
+  const inputIsUrl = inputRef !== null
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+  const activeRef = activeTab ? parseYouTubeUrl(activeTab.currentUrl || activeTab.url) : null
+
+  useEffect(() => {
+    return window.api.onYouTubeDownloadProgress((p) => {
+      setDownloads((d) =>
+        p.videoId in d
+          ? { ...d, [p.videoId]: p.phase === 'component' ? `组件 ${p.percent}%` : `${p.percent}%` }
+          : d
+      )
+    })
+  }, [])
+
+  const downloadAudio = async (videoId: string, title?: string, artist?: string): Promise<void> => {
+    if (downloads[videoId]) return
+    setDownloads((d) => ({ ...d, [videoId]: '…' }))
+    try {
+      const result = await window.api.downloadYouTubeAudio(
+        `https://www.youtube.com/watch?v=${videoId}`,
+        { title, artist }
+      )
+      if ('error' in result) {
+        usePlayer.getState().showNotice(`下载失败：${result.error}`)
+      } else {
+        const added = useLibrary.getState().addDownloadedTrack(result)
+        usePlayer
+          .getState()
+          .showNotice(added ? `已下载到音乐库：${result.title}` : '该音频已在音乐库中')
+      }
+    } catch {
+      usePlayer.getState().showNotice('下载失败，请稍后重试')
+    } finally {
+      setDownloads((d) => {
+        const next = { ...d }
+        delete next[videoId]
+        return next
+      })
+    }
+  }
 
   const startPlay = (ref: YouTubeRef, url: string, knownTitle?: string): void => {
     usePlayer.getState().openOnlineTab(url, knownTitle)
@@ -172,6 +216,15 @@ function OnlinePlayer(): React.JSX.Element {
         <button className="btn" onClick={submit} disabled={searching}>
           {searching ? '搜索中…' : inputIsUrl ? '播放' : '搜索'}
         </button>
+        {inputRef?.listId && (
+          <button
+            className="btn"
+            title="解析歌单内容并批量下载音频到音乐库"
+            onClick={() => setPlaylistUrl(input.trim())}
+          >
+            下载歌单
+          </button>
+        )}
         {activeTab && (
           <button
             className="btn"
@@ -179,6 +232,21 @@ function OnlinePlayer(): React.JSX.Element {
             onClick={() => window.api.openYouTubeWindow(activeTab.currentUrl || activeTab.url)}
           >
             在窗口中打开
+          </button>
+        )}
+        {activeTab && activeRef?.videoId && (
+          <button
+            className="btn"
+            title="下载当前视频的音频到音乐库"
+            disabled={!!downloads[activeRef.videoId]}
+            onClick={() =>
+              downloadAudio(
+                activeRef.videoId,
+                activeTab.title.replace(/\s*-\s*YouTube\s*$/, '').trim() || undefined
+              )
+            }
+          >
+            {downloads[activeRef.videoId] ? `下载 ${downloads[activeRef.videoId]}` : '下载音频'}
           </button>
         )}
         <button
@@ -258,6 +326,16 @@ function OnlinePlayer(): React.JSX.Element {
                 <span className="online-history-name">{r.title}</span>
                 <span className="online-result-channel">{r.channel}</span>
                 <span className="online-history-time">{r.duration}</span>
+                <button
+                  className="online-dl"
+                  title="下载音频到音乐库"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    downloadAudio(r.videoId, r.title, r.channel)
+                  }}
+                >
+                  {downloads[r.videoId] ?? '⬇ 下载'}
+                </button>
               </div>
             ))}
           </div>
@@ -296,6 +374,9 @@ function OnlinePlayer(): React.JSX.Element {
             </div>
           </div>
         )
+      )}
+      {playlistUrl && (
+        <PlaylistDownloadDialog url={playlistUrl} onClose={() => setPlaylistUrl(null)} />
       )}
     </div>
   )

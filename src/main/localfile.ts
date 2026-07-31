@@ -55,6 +55,9 @@ export function registerLocalFileProtocol(): void {
   protocol.handle('localfile', async (request) => {
     try {
       const filePath = pathFromUrl(request.url)
+      // 只服务已知的音频/图片类型：该协议能读全盘文件，
+      // 白名单确保即使渲染进程被攻破也无法借它读取任意文件（如密钥、配置）
+      if (!(extname(filePath).toLowerCase() in MIME)) return new Response(null, { status: 404 })
       const stat = await fs.stat(filePath)
       if (!stat.isFile()) return new Response(null, { status: 404 })
 
