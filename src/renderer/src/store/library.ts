@@ -8,7 +8,7 @@ import type {
 } from '../../../shared/types'
 import { applyColorTheme } from '../themes'
 import { usePlayer } from './player'
-import { isUnderDir } from '../folderTree'
+import { isUnderDir, normalizePath } from '../folderTree'
 
 function ytKey(videoId: string, listId: string | null): string {
   return `${videoId}|${listId ?? ''}`
@@ -297,10 +297,15 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   removeMusicFolder: (folder) =>
     set((s) => {
       const musicFolders = s.musicFolders.filter((f) => f !== folder)
-      // 仅取消登记，已入库的曲目保留（用户可再手动删除）
+      // 仅取消登记，已入库的曲目保留（用户可再手动删除）。
+      // 视图里的目录路径是正斜杠规范形式，比较前先统一
       return {
         musicFolders,
-        view: s.view === FOLDER_VIEW_PREFIX + folder ? 'library' : s.view
+        view:
+          s.view === FOLDER_VIEW_PREFIX + normalizePath(folder) ||
+          s.view === FOLDER_VIEW_PREFIX + folder
+            ? 'library'
+            : s.view
       }
     }),
 

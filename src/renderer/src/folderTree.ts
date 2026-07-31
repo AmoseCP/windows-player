@@ -34,11 +34,14 @@ export function buildFolderTree(tracks: Track[]): DirNode[] {
     const norm = normalizePath(t.path)
     const dir = norm.slice(0, norm.lastIndexOf('/'))
     const segments = dir.split('/').filter(Boolean)
+    // 重建的节点路径必须与原路径一致：Windows 是 C:/…（无前导斜杠），
+    // 盲加 '/' 会得到 /C:/… —— 目录过滤、定位文件全都会失效
+    const rootPrefix = dir.startsWith('/') ? '/' : ''
     let node = root
     let acc = ''
     node.total++
     for (const seg of segments) {
-      acc = acc + '/' + seg
+      acc = acc === '' ? rootPrefix + seg : acc + '/' + seg
       let child = node.children.get(seg)
       if (!child) {
         child = { name: seg, path: acc, children: new Map(), direct: 0, total: 0 }

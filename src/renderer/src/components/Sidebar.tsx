@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useLibrary, FOLDER_VIEW_PREFIX } from '../store/library'
 import type { DirNode } from '../store/library'
-import { buildFolderTree } from '../folderTree'
+import { buildFolderTree, normalizePath } from '../folderTree'
 import { usePlayer } from '../store/player'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -203,7 +203,9 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
   const dirMenu = (e: React.MouseEvent, node: DirNode): void => {
     const lib = useLibrary.getState()
     const ids = lib.tracksUnderDir(node.path)
-    const isRoot = musicFolders.includes(node.path)
+    // node.path 是正斜杠规范形式，musicFolders 存的是系统原生路径（Windows 为反斜杠），
+    // 找出对应的原始条目：既用于判定根目录，也保证「取消登记」能删掉正确的记录
+    const rootEntry = musicFolders.find((f) => normalizePath(f) === node.path)
     const playlistItem = (pid: string): MenuItem => ({
       label: lib.playlists[pid]?.name ?? '',
       onClick: () => {
@@ -229,11 +231,11 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
         ]
       },
       { label: '在文件管理器中打开', onClick: () => void window.api.revealInFolder(node.path) },
-      ...(isRoot
+      ...(rootEntry !== undefined
         ? [
             {
               label: '取消登记为音乐文件夹',
-              onClick: () => useLibrary.getState().removeMusicFolder(node.path)
+              onClick: () => useLibrary.getState().removeMusicFolder(rootEntry)
             }
           ]
         : []),
@@ -248,7 +250,7 @@ function Sidebar({ width }: SidebarProps): React.JSX.Element {
             onConfirm: () => {
               useLibrary.getState().deleteTracksFromLibrary(ids)
               for (const id of ids) usePlayer.getState().removeFromQueue(id)
-              if (isRoot) useLibrary.getState().removeMusicFolder(node.path)
+              if (rootEntry !== undefined) useLibrary.getState().removeMusicFolder(rootEntry)
               useLibrary.getState().setView('library')
             }
           })

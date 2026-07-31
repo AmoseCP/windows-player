@@ -153,9 +153,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('app:platform', () => process.platform)
 
-  // 在系统文件管理器中定位歌曲文件
+  // 在系统文件管理器中定位歌曲文件（渲染层目录树传来的是正斜杠路径，
+  // Windows 资源管理器需要原生反斜杠，统一 normalize）
   ipcMain.handle('shell:reveal', (_e, filePath: string) => {
-    if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath)
+    if (typeof filePath === 'string' && filePath) shell.showItemInFolder(path.normalize(filePath))
   })
 
   // 清理不再被任何曲目引用的封面缓存（封面按内容 hash 共享，需整体做引用计数）
