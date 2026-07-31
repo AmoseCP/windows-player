@@ -137,7 +137,12 @@ function OnlinePlayer(): React.JSX.Element {
         const added = useLibrary.getState().addDownloadedTrack(result)
         usePlayer
           .getState()
-          .showNotice(added ? `已下载到音乐库：${result.title}` : '该音频已在音乐库中')
+          .showNotice(
+            added
+              ? `已下载到「音乐 › Bethel Church Audio Player」（点击查看文件）：${result.title}`
+              : '该音频已在音乐库中（点击查看文件）',
+            () => window.api.revealInFolder(result.path)
+          )
       }
     } catch {
       usePlayer.getState().showNotice('下载失败，请稍后重试')

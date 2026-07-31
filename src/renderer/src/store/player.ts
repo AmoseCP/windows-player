@@ -22,6 +22,7 @@ interface PlayerState {
   playMode: PlayMode
   history: number[] // 随机模式的「上一首」回退栈（队列下标）
   notice: string | null // 短暂提示（文件不存在 / 格式不支持）
+  noticeAction: (() => void) | null // 提示的点击动作（如定位下载的文件）；null = 不可点击
   miniMode: boolean // 迷你播放器模式
   showLyrics: boolean // 歌词面板
   showOnline: boolean // 在线播放（YouTube）面板
@@ -41,7 +42,7 @@ interface PlayerState {
   toggleMute: () => void
   cyclePlayMode: () => void
   setPlayMode: (mode: PlayMode) => void
-  showNotice: (msg: string) => void
+  showNotice: (msg: string, action?: () => void) => void
   removeFromQueue: (trackId: string) => void
   setMini: (mini: boolean) => void
   toggleLyrics: () => void
@@ -76,6 +77,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playMode: 'order',
   history: [],
   notice: null,
+  noticeAction: null,
   miniMode: false,
   showLyrics: false,
   showOnline: false,
@@ -164,10 +166,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   setPlayMode: (mode) => set({ playMode: mode }),
 
-  showNotice: (msg) => {
+  showNotice: (msg, action) => {
     clearTimeout(noticeTimer)
-    noticeTimer = setTimeout(() => set({ notice: null }), 3000)
-    set({ notice: msg })
+    // 可点击的提示多停留几秒，给用户看清和点击的时间
+    noticeTimer = setTimeout(() => set({ notice: null, noticeAction: null }), action ? 6000 : 3000)
+    set({ notice: msg, noticeAction: action ?? null })
   },
 
   setMini: (mini) => {

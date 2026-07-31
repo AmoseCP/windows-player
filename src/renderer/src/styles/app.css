@@ -1308,6 +1308,14 @@ input {
   z-index: 10;
 }
 
+.toast.clickable {
+  cursor: pointer;
+}
+
+.toast.clickable:hover {
+  border-color: var(--accent);
+}
+
 /* 右侧抽屉面板（播放队列等） */
 .side-panel {
   width: 320px;

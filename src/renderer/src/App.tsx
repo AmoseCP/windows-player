@@ -44,6 +44,7 @@ function App(): React.JSX.Element {
   const [dragLabel, setDragLabel] = useState<string | null>(null)
   const importPaths = useLibrary((s) => s.importPaths)
   const notice = usePlayer((s) => s.notice)
+  const noticeAction = usePlayer((s) => s.noticeAction)
   const miniMode = usePlayer((s) => s.miniMode)
   const showLyrics = usePlayer((s) => s.showLyrics)
   const showOnline = usePlayer((s) => s.showOnline)
@@ -192,12 +193,28 @@ function App(): React.JSX.Element {
     window.addEventListener('mouseup', onUp, { signal: ac.signal })
   }, [])
 
+  const toast = notice && (
+    <div
+      className={`toast${noticeAction ? ' clickable' : ''}`}
+      onClick={
+        noticeAction
+          ? () => {
+              noticeAction()
+              usePlayer.setState({ notice: null, noticeAction: null })
+            }
+          : undefined
+      }
+    >
+      {notice}
+    </div>
+  )
+
   // 迷你模式：只渲染迷你播放条
   if (miniMode) {
     return (
       <div className="app mini" style={themeStyle}>
         <MiniPlayer />
-        {notice && <div className="toast">{notice}</div>}
+        {toast}
       </div>
     )
   }
@@ -239,7 +256,7 @@ function App(): React.JSX.Element {
         </DragOverlay>
       </DndContext>
       <PlayerBar />
-      {notice && <div className="toast">{notice}</div>}
+      {toast}
     </div>
   )
 }
