@@ -14,7 +14,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
-import { registerUpdaterIpc } from './updater'
+import { registerUpdaterIpc, scheduleStartupUpdateCheck } from './updater'
 import { flushSaveSync, hasPendingSave } from './store'
 import { registerLocalFileSchemes, registerLocalFileProtocol } from './localfile'
 
@@ -317,6 +317,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
   registerUpdaterIpc()
+  scheduleStartupUpdateCheck()
 
   ipcMain.on('window:setMini', (_e, mini: boolean) => setMiniMode(mini))
 

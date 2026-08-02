@@ -46,3 +46,14 @@ export function registerUpdaterIpc(): void {
 
   ipcMain.on('update:install', () => autoUpdater.quitAndInstall())
 }
+
+/**
+ * 启动后延迟静默检查一次更新：发现新版本自动下载，下载完成由渲染层提示。
+ * 检查失败不打扰用户（error 事件只影响「关于」对话框里主动检查的显示）。
+ */
+export function scheduleStartupUpdateCheck(): void {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, 10_000)
+}

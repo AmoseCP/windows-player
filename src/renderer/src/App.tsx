@@ -94,9 +94,20 @@ function App(): React.JSX.Element {
       // m3u 文件按歌单导入（逐个建立歌单）
       for (const f of playlists) await useLibrary.getState().importPlaylistFile(f)
     })
+    // 启动静默检查发现的新版本下载完成 → 可点击提示重启安装（不点也会在退出时自动安装）
+    const offUpdate = window.api.onUpdateState((s) => {
+      if (s.status === 'downloaded') {
+        usePlayer
+          .getState()
+          .showNotice(`新版本 v${s.version} 已下载完成（点击重启安装）`, () =>
+            window.api.installUpdate()
+          )
+      }
+    })
     return () => {
       offStop()
       offOpen()
+      offUpdate()
     }
   }, [])
 
