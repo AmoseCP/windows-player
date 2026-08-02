@@ -29,6 +29,15 @@ export interface ImportProgress {
   total: number
 }
 
+/** 在线更新状态（主进程 → 渲染进程广播） */
+export type UpdateState =
+  | { status: 'checking' }
+  | { status: 'available'; version: string }
+  | { status: 'progress'; percent: number }
+  | { status: 'downloaded'; version: string }
+  | { status: 'none' }
+  | { status: 'error'; message: string }
+
 export interface PlaylistFolder {
   id: string
   name: string

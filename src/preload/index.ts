@@ -6,7 +6,8 @@ import type {
   ScanResult,
   YouTubeSearchResult,
   YouTubeDownloadProgress,
-  YouTubePlaylistInfo
+  YouTubePlaylistInfo,
+  UpdateState
 } from '../shared/types'
 
 // 渲染进程可用的白名单 API。
@@ -57,6 +58,13 @@ const api = {
     const listener = (_e: Electron.IpcRendererEvent, p: YouTubeDownloadProgress): void => cb(p)
     ipcRenderer.on('youtube:downloadProgress', listener)
     return () => ipcRenderer.removeListener('youtube:downloadProgress', listener)
+  },
+  checkForUpdate: (): Promise<{ error?: string }> => ipcRenderer.invoke('update:check'),
+  installUpdate: (): void => ipcRenderer.send('update:install'),
+  onUpdateState: (cb: (s: UpdateState) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, s: UpdateState): void => cb(s)
+    ipcRenderer.on('update:state', listener)
+    return () => ipcRenderer.removeListener('update:state', listener)
   },
   onPlayerStop: (cb: () => void): (() => void) => {
     const listener = (): void => cb()

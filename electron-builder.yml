@@ -45,4 +45,9 @@ portable:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
+# 在线更新源：GitHub Releases（electron-updater 从这里读取 latest.yml 与安装包）
+publish:
+  provider: github
+  owner: AmoseCP
+  repo: windows-player
 npmRebuild: false

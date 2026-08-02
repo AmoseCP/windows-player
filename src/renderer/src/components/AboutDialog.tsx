@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { SUPPORTED_EXTENSIONS } from '../../../shared/types'
+import type { UpdateState } from '../../../shared/types'
 import NoteIcon from './NoteIcon'
 
 interface AboutDialogProps {
@@ -12,12 +13,39 @@ const PLAYLIST_FORMATS = '.m3u  .m3u8'
 const LYRIC_FORMATS = '.lrc（UTF-8 / GBK）'
 const IMAGE_FORMATS = '.jpg  .jpeg  .png  .webp  .gif  .bmp'
 
+function updateStateText(s: UpdateState): string {
+  switch (s.status) {
+    case 'checking':
+      return '正在检查更新…'
+    case 'available':
+      return `发现新版本 v${s.version}，正在下载…`
+    case 'progress':
+      return `正在下载更新 ${s.percent}%`
+    case 'downloaded':
+      return `新版本 v${s.version} 已就绪`
+    case 'none':
+      return '已是最新版本'
+    case 'error':
+      return `更新失败：${s.message}`
+  }
+}
+
 function AboutDialog({ onClose }: AboutDialogProps): React.JSX.Element {
   const [version, setVersion] = useState('')
+  const [update, setUpdate] = useState<UpdateState | null>(null)
 
   useEffect(() => {
     window.api.getAppVersion().then(setVersion)
+    return window.api.onUpdateState(setUpdate)
   }, [])
+
+  const busy = update !== null && ['checking', 'available', 'progress'].includes(update.status)
+
+  const checkUpdate = async (): Promise<void> => {
+    setUpdate({ status: 'checking' })
+    const r = await window.api.checkForUpdate()
+    if (r.error) setUpdate({ status: 'error', message: r.error })
+  }
 
   return (
     <div className="dialog-overlay" onMouseDown={onClose}>
@@ -30,8 +58,28 @@ function AboutDialog({ onClose }: AboutDialogProps): React.JSX.Element {
         <div className="about-rows">
           <div className="about-row">
             <span className="about-label">版本</span>
-            <span>{version ? `v${version}` : '…'}</span>
+            <span>
+              {version ? `v${version}` : '…'}
+              {update?.status === 'downloaded' ? (
+                <button className="btn about-update-btn" onClick={() => window.api.installUpdate()}>
+                  重启并安装 v{update.version}
+                </button>
+              ) : (
+                <button
+                  className="btn about-update-btn"
+                  disabled={busy}
+                  onClick={() => void checkUpdate()}
+                >
+                  {busy ? '更新中…' : '检查更新'}
+                </button>
+              )}
+            </span>
           </div>
+          {update && (
+            <div className={`about-update-status${update.status === 'error' ? ' error' : ''}`}>
+              {updateStateText(update)}
+            </div>
+          )}
           <div className="about-row">
             <span className="about-label">开发者</span>
             <span>Amose Ding</span>

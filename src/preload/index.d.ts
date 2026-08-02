@@ -5,7 +5,8 @@ import type {
   ScanResult,
   YouTubeSearchResult,
   YouTubeDownloadProgress,
-  YouTubePlaylistInfo
+  YouTubePlaylistInfo,
+  UpdateState
 } from '../shared/types'
 
 interface Api {
@@ -40,6 +41,9 @@ interface Api {
   ): Promise<Track | { error: string }>
   onYouTubeDownloadProgress(cb: (p: YouTubeDownloadProgress) => void): () => void
   parseYouTubePlaylist(url: string): Promise<YouTubePlaylistInfo | { error: string }>
+  checkForUpdate(): Promise<{ error?: string }>
+  installUpdate(): void
+  onUpdateState(cb: (s: UpdateState) => void): () => void
   onPlayerStop(cb: () => void): () => void
   onMiniHover(cb: (hovered: boolean) => void): () => void
   exportPlaylist(

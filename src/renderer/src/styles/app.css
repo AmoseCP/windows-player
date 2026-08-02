@@ -646,6 +646,22 @@ input {
   flex-shrink: 0;
 }
 
+.about-update-btn {
+  margin-left: 10px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.about-update-status {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.about-update-status.error {
+  color: #ff6b6b;
+}
+
 .about-actions {
   justify-content: center;
 }
