@@ -91,6 +91,10 @@ function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JS
       }}
       className={`online-frame${active ? '' : ' inactive'}`}
       src={initialSrc}
+      // 与主进程的登录窗口/下载 cookie 导出共用同一分区（main/index.ts 的 YOUTUBE_PARTITION）。
+      // 必须在标签上声明：will-attach-webview 里改 params.partition 在 Electron 39 已不生效
+      // eslint-disable-next-line react/no-unknown-property
+      partition="persist:youtube"
     />
   )
 }
