@@ -63,6 +63,18 @@ function isYouTubeUrl(url: string): boolean {
   }
 }
 
+/**
+ * 把 YouTube 分区的 cookie 立即写入磁盘。Chromium 平时只把 cookie 留在内存里、
+ * 延迟批量落盘，退出时来不及写就会丢登录态，下次启动又要重新登录。
+ * 加超时兜底，避免落盘卡住导致退不掉进程。
+ */
+function flushYouTubeCookies(): Promise<void> {
+  return Promise.race([
+    session.fromPartition(YOUTUBE_PARTITION).cookies.flushStore(),
+    new Promise<void>((resolve) => setTimeout(resolve, 1000))
+  ]).catch(() => undefined)
+}
+
 /** YouTube 系窗口的统一加固：限制站内导航、弹窗交给系统浏览器 */
 function hardenYouTubeWindow(win: BrowserWindow): void {
   win.webContents.setWindowOpenHandler((details) => {
@@ -337,6 +349,7 @@ app.whenReady().then(() => {
     hardenYouTubeWindow(loginWindow)
     loginWindow.on('closed', () => {
       loginWindow = null
+      void flushYouTubeCookies() // 登录后马上落盘，不等到退出
     })
     void loginWindow.loadURL('https://www.youtube.com')
   })
@@ -392,16 +405,16 @@ app.whenReady().then(() => {
   })
 })
 
-// 退出前强制落盘未保存数据；若仍有异步写入在飞，稍等一轮再退出
+// 退出前强制落盘未保存数据与 YouTube 登录 cookie；若仍有异步写入在飞，稍等一轮再退出
 let quitDeferred = false
 app.on('before-quit', (e) => {
   isQuitting = true
   flushSaveSync()
-  if (hasPendingSave() && !quitDeferred) {
-    quitDeferred = true
-    e.preventDefault()
-    setTimeout(() => app.quit(), 300)
-  }
+  if (quitDeferred) return
+  quitDeferred = true
+  e.preventDefault()
+  const delay = hasPendingSave() ? 300 : 0
+  void flushYouTubeCookies().then(() => setTimeout(() => app.quit(), delay))
 })
 
 app.on('will-quit', () => {
