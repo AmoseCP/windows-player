@@ -187,6 +187,15 @@ function TrackList(): React.JSX.Element {
 
   const sortedIds = useMemo(() => sorted.map((t) => t.id), [sorted])
 
+  // 同步给播放器：未开播时点播放键（含空格、迷你条）从当前视图、当前选中处开播
+  const selectedIndex = useMemo(
+    () => (selected.size === 0 ? -1 : sortedIds.findIndex((id) => selected.has(id))),
+    [sortedIds, selected]
+  )
+  useEffect(() => {
+    usePlayer.getState().setViewTracks(sortedIds, selectedIndex)
+  }, [sortedIds, selectedIndex])
+
   // 虚拟滚动：仅渲染视口内的行，千首级列表才不会卡
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)

@@ -116,6 +116,29 @@ if (phase === '1') {
     expect(r.loaded, '封面图未加载成功')
   })
 
+  await test('未开播时点播放键：从当前视图（选中处）开播', async () => {
+    const r = await ev(`
+      const p = () => window.__test.usePlayer.getState()
+      const btn = document.querySelector('.playerbar .control-btn.play')
+      const before = p().queueIndex
+      btn.click()
+      await new Promise(r => setTimeout(r, 800))
+      const first = { idx: p().queueIndex, playing: p().playing, paused: window.__test.audio.paused }
+      // 清空队列后选中第 3 行再点播放：应从选中处开播
+      p().clearQueue()
+      document.querySelectorAll('.track-row')[2].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      await new Promise(r => setTimeout(r, 200))
+      btn.click()
+      await new Promise(r => setTimeout(r, 800))
+      const sel = p().queueIndex
+      p().clearQueue()
+      return { before, first, sel }
+    `)
+    expect(r.before === -1, '前置条件：此用例前不应已有播放队列，实际 ' + r.before)
+    expect(r.first.idx === 0 && r.first.playing && !r.first.paused, '空队列点播放未开播 ' + JSON.stringify(r.first))
+    expect(r.sel === 2, '未从选中曲目开播，实际下标 ' + r.sel)
+  })
+
   await test('双击播放', async () => {
     const r = await ev(`
       document.querySelectorAll('.track-row')[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))

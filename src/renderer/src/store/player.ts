@@ -33,8 +33,11 @@ interface PlayerState {
   fadeSeconds: number // 淡入淡出时长（秒），0 = 关闭
   sleepAt: number | null // 睡眠定时器到点的时间戳；null = 未设置
   sleepAfterTrack: boolean // 「播完当前曲目后停止」
+  viewTrackIds: string[] // 列表视图当前显示的曲目（由 TrackList 同步），未在播放时点播放键据此开播
+  viewSelectedIndex: number // 视图中首个被选中的曲目下标；-1 = 未选中
 
   startQueue: (queue: string[], index: number) => void
+  setViewTracks: (ids: string[], selectedIndex: number) => void
   togglePlay: () => void
   next: (auto: boolean) => void
   prev: () => void
@@ -88,6 +91,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   fadeSeconds: 0,
   sleepAt: null,
   sleepAfterTrack: false,
+  viewTrackIds: [],
+  viewSelectedIndex: -1,
 
   startQueue: (queue, index) =>
     set((s) => ({
@@ -98,9 +103,17 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       playNonce: s.playNonce + 1
     })),
 
+  setViewTracks: (ids, selectedIndex) =>
+    set({ viewTrackIds: ids, viewSelectedIndex: selectedIndex }),
+
   togglePlay: () => {
     const s = get()
-    if (s.queueIndex < 0) return
+    // 还没开过播（刚打开歌单/文件夹）：从当前视图开播，选中了某首就从它开始
+    if (s.queueIndex < 0) {
+      if (s.viewTrackIds.length === 0) return
+      get().startQueue(s.viewTrackIds, Math.max(0, s.viewSelectedIndex))
+      return
+    }
     set({ playing: !s.playing })
   },
 
