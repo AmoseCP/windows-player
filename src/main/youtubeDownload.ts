@@ -95,8 +95,15 @@ async function doEnsureYtDlp(onProgress: (percent: number) => void): Promise<str
 }
 
 // yt-dlp 是 Python 程序，Windows 上管道输出默认用 ANSI 代码页（如 GBK），
-// 中文标题的文件路径会乱码；统一强制 UTF-8，与 macOS/Linux 行为一致
-const YTDLP_ENV = { ...process.env, PYTHONIOENCODING: 'utf-8' }
+// 中文标题的文件路径会乱码；统一强制 UTF-8，与 macOS/Linux 行为一致。
+// ELECTRON_RUN_AS_NODE 让 yt-dlp 把本应用可执行文件当 Node 运行时调用
+//（见 jsRuntimeArgs），只影响 yt-dlp 及其子进程，不影响应用自身
+const YTDLP_ENV = { ...process.env, PYTHONIOENCODING: 'utf-8', ELECTRON_RUN_AS_NODE: '1' }
+
+// yt-dlp 解 YouTube 签名挑战必须有外部 JS 运行时，多数用户机器上没有
+// Deno/Node，导致所有客户端都拿不到格式（Requested format is not available）。
+// Electron 二进制在 ELECTRON_RUN_AS_NODE=1 下就是完整的 Node，注册给 yt-dlp 使用
+const jsRuntimeArgs = ['--js-runtimes', `node:${process.execPath}`]
 
 /** 把 YouTube 分区的登录 cookie 导出为 Netscape 格式供 yt-dlp 使用（降低风控拦截概率） */
 async function exportYouTubeCookies(): Promise<string | null> {
@@ -310,6 +317,7 @@ export async function downloadYouTubeAudio(
     '--no-simulate',
     '--print',
     'after_move:filepath',
+    ...jsRuntimeArgs,
     ...(extractorArgs ? ['--extractor-args', extractorArgs] : []),
     ...(withCookies && cookies ? ['--cookies', cookies] : []),
     `https://www.youtube.com/watch?v=${videoId}`
