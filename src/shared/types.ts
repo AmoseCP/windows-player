@@ -8,7 +8,9 @@ export const SUPPORTED_EXTENSIONS = [
   '.aac',
   '.m4a',
   '.mp4',
-  '.wma'
+  '.wma',
+  '.webm', // YouTube 下载兜底格式（opus 音轨），Chromium 原生可播
+  '.opus'
 ] as const
 
 export interface Track {

@@ -338,11 +338,13 @@ export function registerIpcHandlers(): void {
           ? '.flac'
           : contentType.includes('wav')
             ? '.wav'
-            : contentType.includes('ogg')
-              ? '.ogg'
-              : contentType.includes('aac')
-                ? '.aac'
-                : '.mp3'
+            : contentType.includes('webm')
+              ? '.webm'
+              : contentType.includes('ogg')
+                ? '.ogg'
+                : contentType.includes('aac')
+                  ? '.aac'
+                  : '.mp3'
     const ext = (SUPPORTED_EXTENSIONS as readonly string[]).includes(urlExt) ? urlExt : extFromType
     const base = path.basename(urlName, urlExt).replace(/[\\/:*?"<>|]/g, '_') || 'audio'
 

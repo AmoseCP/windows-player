@@ -106,7 +106,7 @@ function showMainWindow(): void {
 let pendingOpenFiles: string[] = []
 
 function isOpenableFile(p: string): boolean {
-  return /\.(mp3|flac|wav|ogg|aac|m4a|mp4|wma|m3u8?)$/i.test(p)
+  return /\.(mp3|flac|wav|ogg|aac|m4a|mp4|wma|webm|opus|m3u8?)$/i.test(p)
 }
 
 /** 收集命令行里的文件参数（Windows/Linux 双击文件时通过 argv 传入） */

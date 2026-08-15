@@ -34,6 +34,8 @@ const MIME: Record<string, string> = {
   '.m4a': 'audio/mp4',
   '.mp4': 'audio/mp4',
   '.wma': 'audio/x-ms-wma',
+  '.webm': 'audio/webm',
+  '.opus': 'audio/ogg',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',

@@ -291,7 +291,7 @@ export async function downloadYouTubeAudio(
     return { error: '获取下载组件失败（首次使用需联网下载 yt-dlp），请稍后重试' }
   }
   const cookies = await exportYouTubeCookies()
-  const args = [
+  const argsFor = (withCookies: boolean, extractorArgs?: string): string[] => [
     '--no-playlist',
     '--no-warnings',
     '--windows-filenames',
@@ -300,7 +300,9 @@ export async function downloadYouTubeAudio(
     '--socket-timeout',
     '30',
     '-f',
-    'bestaudio[ext=m4a]/bestaudio[ext=mp4]/best[ext=mp4]',
+    // 优先 m4a/mp4（无需转码）；部分视频/客户端只提供 webm(opus)，
+    // 播放器原生支持，作为兜底避免「Requested format is not available」
+    'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio/best[ext=mp4]/best',
     // 标题截断到 60 字符（[id] 后缀始终保留）：NTFS 整条路径默认限 260 字符、
     // APFS 单文件名限 255 字节（中文 3 字节/字），保证两个平台生成相同且都合法的文件名
     '-o',
@@ -308,18 +310,35 @@ export async function downloadYouTubeAudio(
     '--no-simulate',
     '--print',
     'after_move:filepath',
-    ...(cookies ? ['--cookies', cookies] : []),
+    ...(extractorArgs ? ['--extractor-args', extractorArgs] : []),
+    ...(withCookies && cookies ? ['--cookies', cookies] : []),
     `https://www.youtube.com/watch?v=${videoId}`
   ]
-  const run = (): Promise<{ file: string } | { error: string }> => runYtDlp(bin, args, onProgress)
-  let result = await run()
+  const run = (
+    withCookies: boolean,
+    extractorArgs?: string
+  ): Promise<{ file: string } | { error: string }> =>
+    runYtDlp(bin, argsFor(withCookies, extractorArgs), onProgress)
+  const retriable = (e: string): boolean => /403|format is not available/i.test(e)
+
+  let result = await run(true)
   // 403 多为签名缓存过期（过期后所有下载都失败），清缓存后重试一次
   if ('error' in result && result.error.includes('403')) {
     await clearYtDlpCache(bin)
-    result = await run()
+    result = await run(true)
+  }
+  // 登录 cookie 会让 yt-dlp 弃用部分播放器客户端，缺 PO Token 时表现为
+  // 403 或无可用格式；去掉 cookie 再试一次（匿名客户端反而拿得到直链）
+  if ('error' in result && cookies && retriable(result.error)) {
+    result = await run(false)
+  }
+  // 默认客户端（android_vr 等）的直链对部分音乐版权视频恒 403，
+  // 换一组经验上仍可用的备用客户端再试
+  if ('error' in result && retriable(result.error)) {
+    result = await run(false, 'youtube:player_client=android_music,web_embedded,tv_simply')
   }
   // 失败可能是 YouTube 改版导致组件过期：自更新成功后重试一次
-  if ('error' in result && (await trySelfUpdate(bin))) return run()
+  if ('error' in result && (await trySelfUpdate(bin))) return run(true)
   return result
 }
 
