@@ -5,6 +5,8 @@ import { useLibrary } from '../store/library'
 import { parseYouTubeUrl } from '../utils'
 import type { YouTubeRef } from '../utils'
 import type { YouTubeHistoryItem, YouTubeSearchResult } from '../../../shared/types'
+import { registerWebview } from '../onlineControl'
+import type { WebviewElement } from '../onlineControl'
 import PlaylistDownloadDialog from './PlaylistDownloadDialog'
 
 function formatPlayedAt(t: number): string {
@@ -20,11 +22,6 @@ interface WebviewEvent extends Event {
   url?: string
   title?: string
   isMainFrame?: boolean
-}
-
-interface WebviewElement extends HTMLElement {
-  setAudioMuted?: (muted: boolean) => void
-  executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>
 }
 
 /** 单个标签的 webview：src 只在挂载时设置，导航/标题变化回写 store */
@@ -88,6 +85,8 @@ function TabView({ tab, active }: { tab: OnlineTab; active: boolean }): React.JS
     <webview
       ref={(node) => {
         ref.current = node as WebviewElement | null
+        // 登记到全局注册表，迷你条通过它控制在线播放（卸载时 node 为 null 即注销）
+        registerWebview(tab.id, node as WebviewElement | null)
       }}
       className={`online-frame${active ? '' : ' inactive'}`}
       src={initialSrc}
@@ -109,6 +108,8 @@ function OnlinePlayer(): React.JSX.Element {
   const [downloads, setDownloads] = useState<Record<string, string>>({})
   // 歌单批量下载对话框（非 null 时显示）
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null)
+  // 已登录 YouTube（网页内登录同样生效）时隐藏「登录 YouTube」按钮
+  const [ytLoggedIn, setYtLoggedIn] = useState(true)
   const history = useLibrary((s) => s.youtubeHistory)
   const tabs = usePlayer((s) => s.onlineTabs)
   const activeTabId = usePlayer((s) => s.activeTabId)
@@ -116,6 +117,18 @@ function OnlinePlayer(): React.JSX.Element {
   const inputIsUrl = inputRef !== null
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   const activeRef = activeTab ? parseYouTubeUrl(activeTab.currentUrl || activeTab.url) : null
+
+  useEffect(() => {
+    let alive = true
+    void window.api.isYouTubeLoggedIn().then((v) => {
+      if (alive) setYtLoggedIn(v)
+    })
+    const off = window.api.onYouTubeLoginChanged(setYtLoggedIn)
+    return () => {
+      alive = false
+      off()
+    }
+  }, [])
 
   useEffect(() => {
     return window.api.onYouTubeDownloadProgress((p) => {
@@ -258,13 +271,15 @@ function OnlinePlayer(): React.JSX.Element {
             {downloads[activeRef.videoId] ? `下载 ${downloads[activeRef.videoId]}` : '下载音频'}
           </button>
         )}
-        <button
-          className="btn"
-          title="登录 YouTube 账号（Premium 会员可免广告）"
-          onClick={() => window.api.openYouTubeLogin()}
-        >
-          登录 YouTube
-        </button>
+        {!ytLoggedIn && (
+          <button
+            className="btn"
+            title="登录 YouTube 账号（Premium 会员可免广告）"
+            onClick={() => window.api.openYouTubeLogin()}
+          >
+            登录 YouTube
+          </button>
+        )}
         <button
           className="control-btn"
           title="关闭在线播放"

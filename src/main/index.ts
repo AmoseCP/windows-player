@@ -189,12 +189,14 @@ function createWindow(): void {
   })
 
   // 强制 webview 使用隔离分区且禁用 Node/preload：localfile 协议只注册在
-  // defaultSession，隔离后远程页面无法通过该协议读取本地文件
-  mainWindow.webContents.on('will-attach-webview', (_e, webPreferences, params) => {
+  // defaultSession，隔离后远程页面无法通过该协议读取本地文件。
+  // 分区必须写在 webPreferences 上：此阶段 params.partition 已被读取过，改它不生效，
+  // webview 会落回 defaultSession（登录/下载用的 cookie 也会因此导不出来）
+  mainWindow.webContents.on('will-attach-webview', (_e, webPreferences) => {
     delete webPreferences.preload
     webPreferences.nodeIntegration = false
     webPreferences.contextIsolation = true
-    params.partition = YOUTUBE_PARTITION
+    webPreferences.partition = YOUTUBE_PARTITION
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -332,6 +334,31 @@ app.whenReady().then(() => {
   scheduleStartupUpdateCheck()
 
   ipcMain.on('window:setMini', (_e, mini: boolean) => setMiniMode(mini))
+
+  // 登录状态 = 分区里存在 SAPISID（Google 登录会话 cookie）。
+  // 渲染层据此隐藏「登录 YouTube」按钮；cookie 变化时（网页内登录/退出）推送更新
+  const isYouTubeLoggedIn = async (): Promise<boolean> => {
+    try {
+      return (await youtubeSession.cookies.get({ name: 'SAPISID' })).length > 0
+    } catch {
+      return false
+    }
+  }
+  ipcMain.handle('youtube:isLoggedIn', isYouTubeLoggedIn)
+
+  let lastLoggedIn: boolean | null = null
+  let loginCheckTimer: NodeJS.Timeout | null = null
+  youtubeSession.cookies.on('changed', () => {
+    if (loginCheckTimer) return // 浏览期间 cookie 高频变化，1 秒节流
+    loginCheckTimer = setTimeout(async () => {
+      loginCheckTimer = null
+      const v = await isYouTubeLoggedIn()
+      if (v !== lastLoggedIn) {
+        lastLoggedIn = v
+        mainWindow?.webContents.send('youtube:loginChanged', v)
+      }
+    }, 1000)
+  })
 
   // YouTube 登录窗口：与在线播放共用 YouTube 分区，登录一次全部生效（Premium 免广告）
   ipcMain.on('youtube:openLogin', () => {

@@ -259,6 +259,25 @@ async function trySelfUpdate(bin: string): Promise<boolean> {
   return updated
 }
 
+/** 清除 yt-dlp 的缓存目录：其中的签名破解结果过期后所有下载都会 403 */
+function clearYtDlpCache(bin: string): Promise<void> {
+  return new Promise((resolve) => {
+    const child = spawn(bin, ['--rm-cache-dir'], { windowsHide: true, env: YTDLP_ENV })
+    const timer = setTimeout(() => {
+      child.kill()
+      resolve()
+    }, 30_000)
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+    child.on('close', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 /** 下载单个视频的音频到 destDir，成功返回最终文件的绝对路径 */
 export async function downloadYouTubeAudio(
   videoId: string,
@@ -293,7 +312,12 @@ export async function downloadYouTubeAudio(
     `https://www.youtube.com/watch?v=${videoId}`
   ]
   const run = (): Promise<{ file: string } | { error: string }> => runYtDlp(bin, args, onProgress)
-  const result = await run()
+  let result = await run()
+  // 403 多为签名缓存过期（过期后所有下载都失败），清缓存后重试一次
+  if ('error' in result && result.error.includes('403')) {
+    await clearYtDlpCache(bin)
+    result = await run()
+  }
   // 失败可能是 YouTube 改版导致组件过期：自更新成功后重试一次
   if ('error' in result && (await trySelfUpdate(bin))) return run()
   return result

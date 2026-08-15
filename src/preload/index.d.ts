@@ -32,6 +32,8 @@ interface Api {
   setMiniWindow(mini: boolean): void
   windowControl(action: 'minimize' | 'toggleMaximize' | 'close'): void
   openYouTubeLogin(): void
+  isYouTubeLoggedIn(): Promise<boolean>
+  onYouTubeLoginChanged(cb: (loggedIn: boolean) => void): () => void
   openYouTubeWindow(url: string): void
   getYouTubeTitle(url: string): Promise<string | null>
   searchYouTube(query: string): Promise<YouTubeSearchResult[]>

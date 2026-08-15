@@ -43,6 +43,12 @@ const api = {
   windowControl: (action: 'minimize' | 'toggleMaximize' | 'close'): void =>
     ipcRenderer.send('window:control', action),
   openYouTubeLogin: (): void => ipcRenderer.send('youtube:openLogin'),
+  isYouTubeLoggedIn: (): Promise<boolean> => ipcRenderer.invoke('youtube:isLoggedIn'),
+  onYouTubeLoginChanged: (cb: (loggedIn: boolean) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, loggedIn: boolean): void => cb(loggedIn)
+    ipcRenderer.on('youtube:loginChanged', listener)
+    return () => ipcRenderer.removeListener('youtube:loginChanged', listener)
+  },
   openYouTubeWindow: (url: string): void => ipcRenderer.send('youtube:openWindow', url),
   getYouTubeTitle: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('youtube:title', url),

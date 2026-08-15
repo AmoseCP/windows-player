@@ -1044,6 +1044,14 @@ input {
   visibility: hidden;
 }
 
+/* 迷你模式下在线面板整体隐藏但保持挂载（同后台标签），音频继续播放 */
+.online-hidden {
+  position: fixed;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .online-hint {
   text-align: center;
   color: var(--text-secondary);

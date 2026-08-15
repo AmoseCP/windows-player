@@ -11,6 +11,11 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    server: {
+      // 5173 落在 Windows 保留端口范围内(netsh excludedportrange),改用未保留端口
+      port: 15173,
+      strictPort: true
+    }
   }
 })

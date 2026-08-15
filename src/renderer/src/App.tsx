@@ -220,11 +220,16 @@ function App(): React.JSX.Element {
     </div>
   )
 
-  // 迷你模式：只渲染迷你播放条
+  // 迷你模式：只渲染迷你播放条；在线面板保持挂载（隐藏），在线播放不中断
   if (miniMode) {
     return (
       <div className="app mini" style={themeStyle}>
         <MiniPlayer />
+        {showOnline && (
+          <div className="online-hidden">
+            <OnlinePlayer />
+          </div>
+        )}
         {toast}
       </div>
     )
